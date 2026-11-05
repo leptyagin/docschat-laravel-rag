@@ -11,7 +11,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
-#[Fillable(['name', 'slug', 'public_key', 'greeting', 'fallback_contact', 'theme'])]
+/**
+ * @property array{color: string, position: string} $theme
+ * @property list<string> $suggested_questions
+ */
+#[Fillable(['name', 'slug', 'public_key', 'greeting', 'fallback_contact', 'theme', 'suggested_questions'])]
 class Bot extends Model
 {
     /** @use HasFactory<BotFactory> */
@@ -53,6 +57,7 @@ class Bot extends Model
     {
         return [
             'theme' => 'array',
+            'suggested_questions' => 'array',
         ];
     }
 }

@@ -124,7 +124,7 @@ final readonly class StreamAnswer
 
         yield from $this->generate($draft, $this->prompts->build($bot, $question, $rewritten->query, $retrieval->chunks));
 
-        $draft->sources = $this->citations->extract($draft->text, $retrieval->chunks);
+        $draft->sources = $this->citations->extract($draft->text, $retrieval->chunks, $bot);
         $draft->refusalReason = $draft->sources === [] ? RefusalReason::NoCitation : null;
     }
 

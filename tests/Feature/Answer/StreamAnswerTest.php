@@ -84,13 +84,16 @@ describe('answering', function (): void {
 
         [$events, $message] = ask($conversation);
 
+        $document = Document::query()->firstOrFail();
+        $sourceUrl = route('widget.documents.show', [$conversation->bot->public_key, $document->id]).'#page=2';
+
         expect($events[0]->type)->toBe(AnswerEventType::Started)
             ->and(app(ConversationTokens::class)->conversationId($events[0]->data['conversation_token']))->toBe($conversation->id)
             ->and(end($events)->type)->toBe(AnswerEventType::Completed)
             ->and(end($events)->data)->toBe([
                 'message_id' => $message->id,
                 'answered' => true,
-                'sources' => [['number' => 1, 'title' => 'Pets Policy', 'page' => 2, 'url' => null]],
+                'sources' => [['number' => 1, 'title' => 'Pets Policy', 'page' => 2, 'url' => $sourceUrl]],
             ]);
     });
 
@@ -133,7 +136,7 @@ describe('answering', function (): void {
             'number' => 1,
             'title' => 'Pets Policy',
             'page' => 2,
-            'url' => null,
+            'url' => route('widget.documents.show', [$message->conversation->bot->public_key, Document::query()->firstOrFail()->id]).'#page=2',
             'excerpt' => 'Dogs up to 15 kg are welcome.',
         ]]);
     });

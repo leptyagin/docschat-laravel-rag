@@ -24,6 +24,7 @@ class BotFactory extends Factory
             'greeting' => 'Hi! How can I help you today?',
             'fallback_contact' => fake()->safeEmail(),
             'theme' => ['color' => '#0f766e', 'position' => 'right'],
+            'suggested_questions' => ['Can I bring my dog?'],
         ];
     }
 }

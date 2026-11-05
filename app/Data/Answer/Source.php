@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Data\Answer;
 
+use App\Models\Bot;
 use App\Models\Chunk;
 use Illuminate\Support\Str;
 
@@ -26,14 +27,17 @@ final readonly class Source
         public string $excerpt,
     ) {}
 
-    public static function fromChunk(int $number, Chunk $chunk): self
+    public static function fromChunk(int $number, Chunk $chunk, Bot $bot): self
     {
+        $document = $chunk->document;
+        $fileUrl = route('widget.documents.show', [$bot->public_key, $document->id]);
+
         return new self(
             number: $number,
             chunkId: $chunk->id,
-            title: $chunk->document->title,
+            title: $document->title,
             page: $chunk->page,
-            url: $chunk->document->source_url,
+            url: $document->source_url ?? ($chunk->page === null ? $fileUrl : "{$fileUrl}#page={$chunk->page}"),
             excerpt: Str::limit($chunk->content, self::EXCERPT_LENGTH),
         );
     }

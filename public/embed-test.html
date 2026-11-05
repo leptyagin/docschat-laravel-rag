@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Widget embed test</title>
+    <style>
+        /* Hostile styles on purpose: none of this may reach the widget. */
+        * { font-family: Georgia, serif !important; }
+        button { background: hotpink !important; border: 5px dashed lime !important; }
+        iframe { border: 10px solid red; }
+        body { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <h1>Widget embed test</h1>
+    <p>
+        A plain HTML page with one script tag, which is all a site needs. To prove that the widget works
+        from another domain, serve this file from a different origin than the application:
+    </p>
+    <pre>python3 -m http.server 9000 --directory public</pre>
+    <p>Then open <code>http://localhost:9000/embed-test.html</code>. Its styles are deliberately hostile.</p>
+
+    <script src="http://localhost:8000/widget.js" data-bot="pk_seabreeze_demo" async></script>
+</body>
+</html>

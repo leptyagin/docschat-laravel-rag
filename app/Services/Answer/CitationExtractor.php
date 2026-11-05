@@ -6,6 +6,7 @@ namespace App\Services\Answer;
 
 use App\Data\Answer\RetrievedChunk;
 use App\Data\Answer\Source;
+use App\Models\Bot;
 
 final class CitationExtractor
 {
@@ -17,7 +18,7 @@ final class CitationExtractor
      * @param  list<RetrievedChunk>  $chunks
      * @return list<Source> In order of first citation.
      */
-    public function extract(string $answer, array $chunks): array
+    public function extract(string $answer, array $chunks, Bot $bot): array
     {
         preg_match_all('/\[(\d+(?:\s*,\s*\d+)*)]/', $answer, $matches);
 
@@ -26,7 +27,7 @@ final class CitationExtractor
 
         foreach (array_unique($numbers) as $number) {
             if (isset($chunks[$number - 1])) {
-                $sources[] = Source::fromChunk($number, $chunks[$number - 1]->chunk);
+                $sources[] = Source::fromChunk($number, $chunks[$number - 1]->chunk, $bot);
             }
         }
 

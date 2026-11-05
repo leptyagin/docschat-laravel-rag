@@ -24,14 +24,22 @@ class SeabreezeSeeder extends Seeder
         'accessibility.pdf' => 'Accessibility Guide',
     ];
 
+    private const array SUGGESTED_QUESTIONS = [
+        'Can I bring my dog to Old Town?',
+        'When does the last ferry leave in January?',
+        'What happens if I cancel a Saver Rate booking?',
+        'Is there a casino at Harbor View?',
+    ];
+
     public function run(IngestFile $ingestFile): void
     {
         $bot = Bot::query()->firstOrCreate(['slug' => 'seabreeze'], [
             'name' => 'Seabreeze Hotels',
-            'public_key' => Bot::generatePublicKey(),
+            'public_key' => config()->string('docschat.demo.bot_key'),
             'greeting' => 'Hi! I can answer questions about staying at Seabreeze Hotels.',
             'fallback_contact' => 'hello@seabreeze.example',
             'theme' => ['color' => '#0f766e', 'position' => 'right'],
+            'suggested_questions' => self::SUGGESTED_QUESTIONS,
         ]);
 
         foreach (self::DOCUMENTS as $fileName => $title) {
