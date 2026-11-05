@@ -38,7 +38,6 @@ function htmlResponse(string $body = PAGE_HTML): PromiseInterface
 }
 
 it('indexes the main content of a web page', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake([
@@ -59,7 +58,6 @@ it('indexes the main content of a web page', function (): void {
 });
 
 it('does not re-embed a page whose text is unchanged', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     $embeddings = fakeEmbeddings();
     Http::fake([
@@ -78,7 +76,6 @@ it('does not re-embed a page whose text is unchanged', function (): void {
 });
 
 it('respects a robots.txt that disallows the page', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake(['hotel.example/robots.txt' => Http::response("User-agent: *\nDisallow: /parking")]);
@@ -92,7 +89,6 @@ it('respects a robots.txt that disallows the page', function (): void {
 });
 
 it('respects a robots.txt rule aimed at this crawler', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake(['hotel.example/robots.txt' => Http::response("User-agent: DocsChatBot\nDisallow: /\n")]);
@@ -101,7 +97,6 @@ it('respects a robots.txt rule aimed at this crawler', function (): void {
 });
 
 it('crawls a page that robots.txt leaves allowed', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake([
@@ -112,8 +107,21 @@ it('crawls a page that robots.txt leaves allowed', function (): void {
     expect(ingestPage()->status)->toBe(DocumentStatus::Ready);
 });
 
+it('applies robots.txt to the target of a redirect', function (): void {
+    fakeDns();
+    fakeEmbeddings();
+    Http::fake([
+        'hotel.example/robots.txt' => Http::response("User-agent: *\nDisallow: /private"),
+        PAGE_URL => Http::response('', 302, ['Location' => '/private/page']),
+        'hotel.example/private/page' => htmlResponse(),
+    ]);
+
+    expect(ingestPage()->error)->toContain('robots.txt');
+
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/private/page'));
+});
+
 it('does not fetch the page while robots.txt returns a server error', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake(['hotel.example/robots.txt' => Http::response('', 503)]);
@@ -123,8 +131,34 @@ it('does not fetch the page while robots.txt returns a server error', function (
     Http::assertNotSent(fn (Request $request): bool => $request->url() === PAGE_URL);
 });
 
+it('shortens a very long page title', function (): void {
+    fakeDns();
+    fakeEmbeddings();
+    Http::fake([
+        'hotel.example/robots.txt' => Http::response('', 404),
+        PAGE_URL => htmlResponse('<title>'.str_repeat('t', 300).'</title><main><p>Body.</p></main>'),
+    ]);
+
+    $document = ingestPage();
+
+    expect($document->status)->toBe(DocumentStatus::Ready)
+        ->and(mb_strlen($document->title))->toBeLessThanOrEqual(255);
+});
+
+it('decodes a page in the charset announced by the server', function (): void {
+    fakeDns();
+    fakeEmbeddings();
+    Http::fake([
+        'hotel.example/robots.txt' => Http::response('', 404),
+        PAGE_URL => Http::response(mb_convert_encoding('<main><p>Café crème</p></main>', 'ISO-8859-1', 'UTF-8'), 200, ['Content-Type' => 'text/html; charset=ISO-8859-1']),
+    ]);
+
+    ingestPage();
+
+    expect(Chunk::query()->firstOrFail()->content)->toBe('Café crème');
+});
+
 it('records why a page could not be used', function (string $body, int $status, string $contentType, string $error): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake([
@@ -143,7 +177,6 @@ it('records why a page could not be used', function (string $body, int $status, 
 ]);
 
 it('refuses a page larger than the configured limit', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     config()->set('docschat.ingestion.http.max_bytes', 100);
@@ -156,7 +189,6 @@ it('refuses a page larger than the configured limit', function (): void {
 });
 
 it('follows a redirect to a public page', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake([
@@ -169,7 +201,6 @@ it('follows a redirect to a public page', function (): void {
 });
 
 it('gives up on a redirect loop', function (): void {
-    Http::preventStrayRequests();
     fakeDns();
     fakeEmbeddings();
     Http::fake([
@@ -181,7 +212,6 @@ it('gives up on a redirect loop', function (): void {
 });
 
 it('sends options the real cURL handler accepts and pins the checked address', function (): void {
-    Http::preventStrayRequests();
     fakeDns(['93.184.216.34']);
     $sentOptions = [];
     Http::fake(function (Request $request, array $options) use (&$sentOptions): PromiseInterface {
@@ -199,8 +229,21 @@ it('sends options the real cURL handler accepts and pins the checked address', f
         ->and($sentOptions['allow_redirects'])->toBeFalse();
 });
 
-it('aborts a download as soon as it passes the size limit', function (): void {
-    Http::preventStrayRequests();
+it('pins every address the host resolves to', function (): void {
+    fakeDns(['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946']);
+    $sentOptions = [];
+    Http::fake(function (Request $request, array $options) use (&$sentOptions): PromiseInterface {
+        $sentOptions = $options;
+
+        return htmlResponse();
+    });
+
+    app(UrlFetcher::class)->get(PAGE_URL);
+
+    expect($sentOptions['curl'][CURLOPT_RESOLVE])->toBe(['hotel.example:443:93.184.216.34,[2606:2800:220:1:248:1893:25c8:1946]']);
+});
+
+it('stops the transfer once the size limit is passed', function (): void {
     fakeDns();
     config()->set('docschat.ingestion.http.max_bytes', 100);
     $sentOptions = [];
@@ -218,7 +261,6 @@ it('aborts a download as soon as it passes the size limit', function (): void {
 
 describe('server-side request forgery', function (): void {
     it('refuses a host that resolves to a private address', function (string $address): void {
-        Http::preventStrayRequests();
         fakeDns([$address]);
         fakeEmbeddings();
 
@@ -231,10 +273,12 @@ describe('server-side request forgery', function (): void {
         'cloud metadata' => '169.254.169.254',
         'ipv6 loopback' => '::1',
         'ipv6 unique local' => 'fd00::1',
+        'ipv4 mapped in ipv6' => '::ffff:127.0.0.1',
+        'multicast' => '224.0.0.1',
+        'nat64 to loopback' => '64:ff9b::7f00:1',
     ]);
 
     it('refuses a host when any of its addresses is private', function (): void {
-        Http::preventStrayRequests();
         fakeDns(['93.184.216.34', '10.0.0.5']);
         fakeEmbeddings();
 
@@ -244,7 +288,6 @@ describe('server-side request forgery', function (): void {
     });
 
     it('refuses a redirect into the private network', function (): void {
-        Http::preventStrayRequests();
         fakeEmbeddings();
         Http::fake([
             'hotel.example/robots.txt' => Http::response('', 404),
@@ -265,10 +308,10 @@ describe('server-side request forgery', function (): void {
         'embedded credentials' => 'https://user:secret@hotel.example/',
         'custom port' => 'https://hotel.example:6379/',
         'not a URL' => 'not a url',
+        'longer than the column' => 'https://hotel.example/'.str_repeat('a', 2100),
     ]);
 
     it('refuses addresses written directly in the URL', function (string $url): void {
-        Http::preventStrayRequests();
         fakeDns();
         fakeEmbeddings();
 

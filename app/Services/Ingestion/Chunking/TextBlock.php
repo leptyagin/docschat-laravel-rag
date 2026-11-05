@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Data\Ingestion;
+namespace App\Services\Ingestion\Chunking;
 
 final readonly class TextBlock
 {

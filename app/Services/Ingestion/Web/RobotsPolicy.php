@@ -12,6 +12,7 @@ final readonly class RobotsPolicy
 {
     public function __construct(
         private UrlFetcher $fetcher,
+        private PublicUrlParser $parser,
         #[Config('docschat.ingestion.http.user_agent')] private string $userAgent,
     ) {}
 
@@ -21,7 +22,7 @@ final readonly class RobotsPolicy
      */
     public function allows(string $url): bool
     {
-        $robotsUrl = $this->fetcher->parse($url)
+        $robotsUrl = $this->parser->parse($url)
             ->withPath('/robots.txt')
             ->withQuery(null)
             ->withFragment(null)

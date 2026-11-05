@@ -10,13 +10,14 @@ use Dom\Element;
 use Dom\HTMLDocument;
 use Dom\Node;
 use Dom\Text;
+use ValueError;
 
 /**
  * Reduces a page to its main content as Markdown-flavoured text.
  */
 final class HtmlContentExtractor
 {
-    private const array MAIN_CONTENT_SELECTORS = ['main', '[role="main"]', 'article'];
+    private const array MAIN_CONTENT_SELECTORS = ['main', '[role="main"]'];
 
     private const string NOISE_SELECTOR = 'script, style, noscript, template, svg, iframe, nav, footer, aside, form,'
         .' [hidden], [aria-hidden="true"], [role="navigation"], [role="contentinfo"], [role="banner"]';
@@ -30,9 +31,12 @@ final class HtmlContentExtractor
         'summary', 'table', 'tbody', 'tfoot', 'thead', 'ul',
     ];
 
-    public function extract(string $html): ExtractedDocument
+    /**
+     * @param  string|null  $charset  The encoding declared by the server, which outranks one declared in the page.
+     */
+    public function extract(string $html, ?string $charset = null): ExtractedDocument
     {
-        $document = HTMLDocument::createFromString($html, LIBXML_NOERROR);
+        $document = $this->parse($html, $charset);
         $root = $this->mainContent($document);
         $title = $this->normalize($document->title);
 
@@ -50,6 +54,19 @@ final class HtmlContentExtractor
         );
     }
 
+    private function parse(string $html, ?string $charset): HTMLDocument
+    {
+        try {
+            return HTMLDocument::createFromString($html, LIBXML_NOERROR, $charset);
+        } catch (ValueError) {
+            return HTMLDocument::createFromString($html, LIBXML_NOERROR);
+        }
+    }
+
+    /**
+     * A single article is the content of the page. Several are a listing, where
+     * each one matters, so that case falls through to the whole body.
+     */
     private function mainContent(HTMLDocument $document): ?Element
     {
         foreach (self::MAIN_CONTENT_SELECTORS as $selector) {
@@ -58,6 +75,12 @@ final class HtmlContentExtractor
             if ($element !== null) {
                 return $element;
             }
+        }
+
+        $articles = $document->querySelectorAll('article');
+
+        if ($articles->length === 1) {
+            return $articles->item(0);
         }
 
         if ($document->body === null) {

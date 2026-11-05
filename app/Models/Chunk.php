@@ -16,11 +16,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A chunk without an embedding is a draft: it is invisible to retrieval until
- * its vector is written, which is what makes replacing a document atomic.
+ * A chunk without an embedding is a draft and is invisible to retrieval. Its
+ * vector waits in draft_embedding until the whole document can go live at once.
+ *
+ * @property string|null $heading The heading trail, such as "Parking > Harbor View".
  */
 #[Fillable(['document_id', 'bot_id', 'position', 'heading', 'page', 'content', 'token_count', 'embedding'])]
-#[Hidden(['embedding', 'tsv'])]
+#[Hidden(['embedding', 'draft_embedding', 'tsv'])]
 #[WithoutTimestamps]
 class Chunk extends Model
 {
@@ -71,12 +73,22 @@ class Chunk extends Model
     }
 
     /**
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function pendingEmbedding(Builder $query): void
+    {
+        $query->whereNull('embedding')->whereNull('draft_embedding');
+    }
+
+    /**
      * @return array<string, class-string>
      */
     protected function casts(): array
     {
         return [
             'embedding' => AsVector::class,
+            'draft_embedding' => AsVector::class,
         ];
     }
 }

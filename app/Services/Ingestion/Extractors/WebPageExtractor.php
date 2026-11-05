@@ -25,17 +25,20 @@ final readonly class WebPageExtractor implements TextExtractor
 
     public function extract(Document $document): ExtractedDocument
     {
-        $url = (string) $document->source_url;
-
-        if (! $this->robots->allows($url)) {
-            throw new UnprocessableSourceException('The site does not allow this page to be crawled (robots.txt).');
-        }
-
-        $response = $this->fetcher->get($url);
+        $response = $this->fetcher->get((string) $document->source_url, function (string $url): void {
+            if (! $this->robots->allows($url)) {
+                throw new UnprocessableSourceException('The site does not allow this page to be crawled (robots.txt).');
+            }
+        });
 
         $this->ensureUsable($response);
 
-        return $this->html->extract($response->body());
+        return $this->html->extract($response->body(), $this->charsetOf($response));
+    }
+
+    private function charsetOf(Response $response): ?string
+    {
+        return preg_match('/charset=["\']?([\w.:-]+)/i', $response->header('Content-Type'), $matches) === 1 ? $matches[1] : null;
     }
 
     private function ensureUsable(Response $response): void

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Jobs\Ingestion;
 
-use App\Actions\Ingestion\PublishDocumentChunks;
-use App\Jobs\Ingestion\Concerns\RecordsIngestionFailure;
+use App\Actions\Ingestion\EmbedDocumentChunks;
+use App\Jobs\Ingestion\Concerns\HandlesIngestionFailure;
 use App\Models\Document;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -22,12 +22,14 @@ use Illuminate\Queue\Attributes\Tries;
 #[DeleteWhenMissingModels]
 final class EmbedChunks implements ShouldQueue
 {
-    use Queueable, RecordsIngestionFailure;
+    use HandlesIngestionFailure, Queueable;
 
     public function __construct(public Document $document) {}
 
-    public function handle(PublishDocumentChunks $publish): void
+    public function handle(EmbedDocumentChunks $embed): void
     {
-        $publish->handle($this->document);
+        if (! $embed->handle($this->document)) {
+            self::dispatch($this->document);
+        }
     }
 }

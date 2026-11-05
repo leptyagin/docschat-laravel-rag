@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs\Ingestion;
 
 use App\Actions\Ingestion\ExtractDocumentText;
-use App\Jobs\Ingestion\Concerns\RecordsIngestionFailure;
+use App\Jobs\Ingestion\Concerns\HandlesIngestionFailure;
 use App\Models\Document;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -22,7 +22,7 @@ use Illuminate\Queue\Attributes\Tries;
 #[DeleteWhenMissingModels]
 final class ExtractText implements ShouldQueue
 {
-    use Queueable, RecordsIngestionFailure;
+    use HandlesIngestionFailure, Queueable;
 
     public function __construct(public Document $document) {}
 

@@ -6,8 +6,6 @@ namespace App\Services\Ingestion\Chunking;
 
 use App\Data\Ingestion\ChunkDraft;
 use App\Data\Ingestion\ExtractedDocument;
-use App\Data\Ingestion\TextBlock;
-use App\Data\Ingestion\TextSection;
 use Illuminate\Container\Attributes\Config;
 
 /**
@@ -34,7 +32,7 @@ final readonly class TextChunker
     ];
 
     public function __construct(
-        private TokenCounter $tokens,
+        private EstimatedTokenCounter $tokens,
         #[Config('docschat.chunking.target_tokens')] private int $targetTokens,
         #[Config('docschat.chunking.overlap_tokens')] private int $overlapTokens,
     ) {}

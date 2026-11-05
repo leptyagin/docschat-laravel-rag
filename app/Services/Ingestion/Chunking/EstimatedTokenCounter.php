@@ -9,7 +9,7 @@ namespace App\Services\Ingestion\Chunking;
  * characters keeps the estimate honest for non-Latin scripts, which take more
  * tokens per character. Chunk sizes are a target, so a tokenizer is not needed.
  */
-final class EstimatedTokenCounter implements TokenCounter
+final class EstimatedTokenCounter
 {
     private const int BYTES_PER_TOKEN = 4;
 

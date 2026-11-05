@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Ingestion;
 
+use App\Ai\Contracts\EmbeddingModel;
 use App\Data\Ingestion\ExtractedDocument;
 use App\Enums\DocumentSourceType;
 use App\Enums\DocumentStatus;
@@ -20,10 +21,11 @@ final readonly class ExtractDocumentText
         private PdfTextExtractor $pdf,
         private WebPageExtractor $webPage,
         private PlainTextExtractor $plainText,
+        private EmbeddingModel $embeddings,
     ) {}
 
     /**
-     * @return bool Whether the text differs from what is already indexed.
+     * @return bool Whether the document needs to be indexed again.
      */
     public function handle(Document $document): bool
     {
@@ -35,18 +37,28 @@ final readonly class ExtractDocumentText
             throw new UnprocessableSourceException('No text could be extracted. Scanned documents are not supported.');
         }
 
-        if ($extraction->checksum() === $document->checksum) {
+        if ($this->isIndexed($document, $extraction)) {
             $document->update(['status' => DocumentStatus::Ready]);
 
             return false;
         }
 
         $document->update([
-            'extraction' => $extraction,
+            'extraction' => $extraction->toArray(),
             'title' => $this->titleFor($document, $extraction),
         ]);
 
         return true;
+    }
+
+    /**
+     * Vectors from different models cannot be compared, so unchanged text still
+     * needs indexing after the embedding model has changed.
+     */
+    private function isIndexed(Document $document, ExtractedDocument $extraction): bool
+    {
+        return $extraction->checksum() === $document->checksum
+            && $document->embedding_model === $this->embeddings->name();
     }
 
     private function extractorFor(DocumentSourceType $sourceType): TextExtractor

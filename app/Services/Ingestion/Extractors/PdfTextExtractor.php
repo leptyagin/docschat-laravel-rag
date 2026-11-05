@@ -8,16 +8,18 @@ use App\Data\Ingestion\ExtractedDocument;
 use App\Data\Ingestion\ExtractedPage;
 use App\Exceptions\Ingestion\UnprocessableSourceException;
 use App\Models\Document;
-use Dom\Element;
-use Dom\HTMLDocument;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Process\Factory as ProcessFactory;
+use XMLReader;
 
 /**
  * Reads the layout rather than the plain text of a PDF, because plain output
  * loses what a heading is. A line set clearly larger than the body text of the
  * document is a heading, and the larger sizes rank higher.
+ *
+ * The layout carries an element for every word, so it is read as a stream:
+ * building a DOM of it needed about 1 MB of memory per page.
  *
  * @phpstan-type Line array{text: string, size: float}
  * @phpstan-type Block list<Line>
@@ -35,6 +37,7 @@ final readonly class PdfTextExtractor implements TextExtractor
         private FilesystemFactory $filesystem,
         #[Config('docschat.ingestion.disk')] private string $disk,
         #[Config('docschat.ingestion.pdf_timeout')] private int $timeout,
+        #[Config('docschat.ingestion.max_pdf_pages')] private int $maxPages,
     ) {}
 
     public function extract(Document $document): ExtractedDocument
@@ -43,13 +46,18 @@ final readonly class PdfTextExtractor implements TextExtractor
 
         $result = $this->process->newPendingProcess()
             ->timeout($this->timeout)
-            ->run(['pdftotext', '-bbox-layout', '-enc', 'UTF-8', '-q', $path, '-']);
+            ->run(['pdftotext', '-bbox-layout', '-enc', 'UTF-8', '-q', '-l', (string) ($this->maxPages + 1), $path, '-']);
 
         if ($result->failed()) {
             throw new UnprocessableSourceException('The PDF could not be read. It may be damaged or password protected.');
         }
 
         $pages = $this->parseLayout($result->output());
+
+        if (count($pages) > $this->maxPages) {
+            throw new UnprocessableSourceException("The PDF has more than {$this->maxPages} pages.");
+        }
+
         $headingLevels = $this->headingLevels($pages);
         $extracted = [];
 
@@ -63,57 +71,60 @@ final readonly class PdfTextExtractor implements TextExtractor
     }
 
     /**
-     * The HTML parser tolerates anything a damaged PDF may produce and, unlike
-     * an XML parser, has no external entities to worry about.
+     * External entities stay off: the reader neither loads the DTD nor uses the
+     * network, so a crafted PDF cannot reach out through its text layer.
      *
      * @return array<int, list<Block>> Blocks keyed by page number.
      */
     private function parseLayout(string $layout): array
     {
-        $pages = [];
+        $previousErrorMode = libxml_use_internal_errors(true);
 
-        foreach (HTMLDocument::createFromString($layout, LIBXML_NOERROR)->querySelectorAll('page') as $index => $page) {
-            $blocks = [];
+        try {
+            $reader = XMLReader::fromString($layout, flags: LIBXML_NONET);
+            $pages = [];
+            $page = 0;
+            $block = [];
+            $words = [];
+            $size = 0.0;
 
-            foreach ($page->querySelectorAll('block') as $block) {
-                $lines = $this->parseLines($block);
+            while ($reader->read()) {
+                if ($reader->nodeType === XMLReader::ELEMENT) {
+                    switch ($reader->localName) {
+                        case 'page':
+                            $pages[++$page] = [];
+                            break;
+                        case 'line':
+                            $words = [];
+                            $size = round((float) $reader->getAttribute('yMax') - (float) $reader->getAttribute('yMin'), 1);
+                            break;
+                        case 'word':
+                            $words[] = trim($reader->readString());
+                            break;
+                    }
+                }
 
-                if ($lines !== []) {
-                    $blocks[] = $lines;
+                if ($reader->nodeType === XMLReader::END_ELEMENT) {
+                    if ($reader->localName === 'line' && implode('', $words) !== '') {
+                        $block[] = ['text' => implode(' ', $words), 'size' => $size];
+                    }
+
+                    if ($reader->localName === 'block' && $block !== []) {
+                        $pages[$page][] = $block;
+                        $block = [];
+                    }
                 }
             }
 
-            $pages[$index + 1] = $blocks;
-        }
-
-        return $pages;
-    }
-
-    /**
-     * @return Block
-     */
-    private function parseLines(Element $block): array
-    {
-        $lines = [];
-
-        foreach ($block->querySelectorAll('line') as $line) {
-            $words = [];
-
-            foreach ($line->querySelectorAll('word') as $word) {
-                $words[] = trim((string) $word->textContent);
+            if (libxml_get_last_error() !== false) {
+                throw new UnprocessableSourceException('The PDF could not be read. It may be damaged or password protected.');
             }
 
-            $text = trim(implode(' ', $words));
-
-            if ($text !== '') {
-                $lines[] = [
-                    'text' => $text,
-                    'size' => round((float) $line->getAttribute('ymax') - (float) $line->getAttribute('ymin'), 1),
-                ];
-            }
+            return $pages;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrorMode);
         }
-
-        return $lines;
     }
 
     /**
@@ -170,22 +181,33 @@ final readonly class PdfTextExtractor implements TextExtractor
 
         foreach ($blocks as $block) {
             $body = [];
+            $heading = [];
+            $headingLevel = null;
 
             foreach ($block as $line) {
-                $level = $headingLevels[(string) $line['size']] ?? null;
+                $level = $this->headingLevelOf($line, $headingLevels);
 
-                if ($level === null || str_word_count($line['text']) > self::MAX_HEADING_WORDS) {
+                if ($level !== $headingLevel && $heading !== []) {
+                    $paragraphs[] = str_repeat('#', (int) $headingLevel).' '.implode(' ', $heading);
+                    $heading = [];
+                }
+
+                if ($level === null) {
                     $body[] = $line['text'];
+                } else {
+                    if ($body !== []) {
+                        $paragraphs[] = implode("\n", $body);
+                        $body = [];
+                    }
 
-                    continue;
+                    $heading[] = $line['text'];
                 }
 
-                if ($body !== []) {
-                    $paragraphs[] = implode("\n", $body);
-                    $body = [];
-                }
+                $headingLevel = $level;
+            }
 
-                $paragraphs[] = str_repeat('#', $level).' '.$line['text'];
+            if ($heading !== []) {
+                $paragraphs[] = str_repeat('#', (int) $headingLevel).' '.implode(' ', $heading);
             }
 
             if ($body !== []) {
@@ -194,5 +216,16 @@ final readonly class PdfTextExtractor implements TextExtractor
         }
 
         return implode("\n\n", $paragraphs);
+    }
+
+    /**
+     * @param  Line  $line
+     * @param  array<string, int>  $headingLevels
+     */
+    private function headingLevelOf(array $line, array $headingLevels): ?int
+    {
+        $wordCount = count(preg_split('/\s+/u', $line['text'], flags: PREG_SPLIT_NO_EMPTY) ?: []);
+
+        return $wordCount > self::MAX_HEADING_WORDS ? null : $headingLevels[(string) $line['size']] ?? null;
     }
 }

@@ -4,22 +4,23 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Data\Ingestion\ExtractedDocument;
 use App\Enums\DocumentSourceType;
 use App\Enums\DocumentStatus;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * @property DocumentSourceType $source_type
  * @property DocumentStatus $status
- * @property ExtractedDocument|null $extraction
+ * @property array{title: string|null, pages: list<array{text: string, number: int|null}>}|null $extraction
  */
 #[Fillable([
     'bot_id',
@@ -28,6 +29,7 @@ use Illuminate\Support\Facades\DB;
     'source_url',
     'file_path',
     'checksum',
+    'embedding_model',
     'status',
     'error',
     'chunk_count',
@@ -38,6 +40,21 @@ class Document extends Model
 {
     /** @use HasFactory<DocumentFactory> */
     use HasFactory;
+
+    private const int MAX_TITLE_LENGTH = 255;
+
+    /**
+     * Longer than the worst case of all pipeline retries. Past this, the jobs of
+     * a document were lost, so it must not block another attempt.
+     */
+    private const int STALE_AFTER_MINUTES = 60;
+
+    public function isBeingProcessed(): bool
+    {
+        return $this->exists
+            && $this->status->isInFlight()
+            && $this->updated_at?->isAfter(now()->subMinutes(self::STALE_AFTER_MINUTES)) === true;
+    }
 
     /**
      * Published chunks stay searchable, so a failed re-index never takes a
@@ -73,6 +90,14 @@ class Document extends Model
     }
 
     /**
+     * @return Attribute<string, string>
+     */
+    protected function title(): Attribute
+    {
+        return Attribute::set(fn (string $title): string => Str::limit($title, self::MAX_TITLE_LENGTH - 3));
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -80,7 +105,7 @@ class Document extends Model
         return [
             'source_type' => DocumentSourceType::class,
             'status' => DocumentStatus::class,
-            'extraction' => ExtractedDocument::class,
+            'extraction' => 'array',
         ];
     }
 }

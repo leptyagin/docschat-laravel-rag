@@ -49,6 +49,22 @@ it('falls back to the body when a page has no main element', function (): void {
     expect($extraction->pages[0]->text)->toBe("## Spa\n\nOpen daily.");
 });
 
+it('uses a single article as the main content', function (): void {
+    $extraction = new HtmlContentExtractor()->extract('<body><div>Promo</div><article><p>Story.</p></article></body>');
+
+    expect($extraction->pages[0]->text)->toBe('Story.');
+});
+
+it('reads the whole page when it lists several articles', function (): void {
+    $extraction = new HtmlContentExtractor()->extract('<body><article><p>First.</p></article><article><p>Second.</p></article></body>');
+
+    expect($extraction->pages[0]->text)->toBe("First.\n\nSecond.");
+});
+
+it('ignores a charset it does not know', function (): void {
+    expect(new HtmlContentExtractor()->extract('<main><p>Text.</p></main>', 'no-such-charset')->pages[0]->text)->toBe('Text.');
+});
+
 it('reports a page without text as empty', function (): void {
     expect(new HtmlContentExtractor()->extract('<html><body><script>1</script></body></html>')->isEmpty())->toBeTrue();
 });

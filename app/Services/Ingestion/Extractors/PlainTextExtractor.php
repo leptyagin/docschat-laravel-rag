@@ -30,6 +30,8 @@ final readonly class PlainTextExtractor implements TextExtractor
             throw new UnprocessableSourceException('The file is not valid UTF-8 text.');
         }
 
-        return new ExtractedDocument([new ExtractedPage(str_replace(["\r\n", "\r"], "\n", $contents))]);
+        $text = str_replace(["\r\n", "\r", "\0"], ["\n", "\n", ''], $contents);
+
+        return new ExtractedDocument([new ExtractedPage(preg_replace('/^\xEF\xBB\xBF/', '', $text) ?? $text)]);
     }
 }
