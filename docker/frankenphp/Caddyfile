@@ -1,0 +1,29 @@
+{
+	frankenphp
+	admin localhost:2019
+	metrics
+}
+
+{$SERVER_NAME::80} {
+	root * /app/public
+	encode zstd br gzip
+
+	log {
+		output stdout
+		format console
+		level {$CADDY_LOG_LEVEL:WARN}
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	@static path /build/* /favicon.ico /robots.txt
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	php_server {
+		try_files {path} index.php
+	}
+}
