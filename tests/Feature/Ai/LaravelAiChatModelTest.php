@@ -7,11 +7,17 @@ use App\Ai\Data\ChatMessage;
 use App\Ai\Data\ChatRequest;
 use App\Ai\LaravelAiChatModel;
 use App\Enums\MessageRole;
+use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Prompts\AgentPrompt;
 
 function chatModel(): LaravelAiChatModel
 {
-    return new LaravelAiChatModel(provider: 'openai', model: 'configured-model', timeout: 10);
+    return new LaravelAiChatModel(
+        provider: 'openai',
+        model: 'configured-model',
+        timeout: 10,
+        providerOptions: ['openai' => ['reasoning' => ['effort' => 'none']]],
+    );
 }
 
 function chatRequest(?string $model = null): ChatRequest
@@ -44,6 +50,20 @@ it('sends the prompt and history and maps the answer', function (): void {
             && $agent->instructions() === 'Answer from the context.'
             && count([...$agent->messages()]) === 2
             && $agent->maxTokens() === 400;
+    });
+});
+
+it('sends only the options of the provider in use', function (): void {
+    ChatCompletionAgent::fake(['Answer']);
+
+    chatModel()->generate(chatRequest());
+
+    ChatCompletionAgent::assertPrompted(function (AgentPrompt $prompt): bool {
+        $agent = $prompt->agent;
+
+        return $agent instanceof ChatCompletionAgent
+            && $agent->providerOptions(Lab::OpenAI) === ['reasoning' => ['effort' => 'none']]
+            && $agent->providerOptions('anthropic') === [];
     });
 });
 

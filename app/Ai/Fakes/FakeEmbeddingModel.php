@@ -22,9 +22,24 @@ final class FakeEmbeddingModel implements EmbeddingModel
 
     private ?RuntimeException $failure = null;
 
+    /** @var list<float>|null */
+    private ?array $fixedVector = null;
+
     public function __construct(
         #[Config('docschat.ai.embeddings.dimensions')] private readonly int $dimensions = 1536,
     ) {}
+
+    /**
+     * Answers every text with the given vector.
+     *
+     * @param  list<float>  $vector
+     */
+    public function returnVector(array $vector): self
+    {
+        $this->fixedVector = $vector;
+
+        return $this;
+    }
 
     public function failWith(RuntimeException $failure): self
     {
@@ -53,6 +68,10 @@ final class FakeEmbeddingModel implements EmbeddingModel
      */
     private function vectorFor(string $text): array
     {
+        if ($this->fixedVector !== null) {
+            return $this->fixedVector;
+        }
+
         $vector = array_fill(0, $this->dimensions, 0.0);
 
         preg_match_all('/[\p{L}\p{N}]+/u', mb_strtolower($text), $words);

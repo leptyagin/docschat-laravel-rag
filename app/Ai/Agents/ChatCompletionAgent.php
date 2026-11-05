@@ -9,6 +9,8 @@ use App\Ai\Data\ChatRequest;
 use App\Enums\MessageRole;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
+use Laravel\Ai\Contracts\HasProviderOptions;
+use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Messages\MessageRole as SdkMessageRole;
 use Laravel\Ai\Promptable;
@@ -16,11 +18,17 @@ use Laravel\Ai\Promptable;
 /**
  * Adapts a provider-neutral ChatRequest to the SDK's agent contract.
  */
-final class ChatCompletionAgent implements Agent, Conversational
+final class ChatCompletionAgent implements Agent, Conversational, HasProviderOptions
 {
     use Promptable;
 
-    public function __construct(private readonly ChatRequest $request) {}
+    /**
+     * @param  array<string, array<string, mixed>>  $providerOptions  Request options keyed by provider.
+     */
+    public function __construct(
+        private readonly ChatRequest $request,
+        private readonly array $providerOptions = [],
+    ) {}
 
     public function instructions(): string
     {
@@ -47,5 +55,13 @@ final class ChatCompletionAgent implements Agent, Conversational
     public function maxTokens(): int
     {
         return $this->request->maxTokens;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function providerOptions(Lab|string $provider): array
+    {
+        return $this->providerOptions[$provider instanceof Lab ? $provider->value : $provider] ?? [];
     }
 }

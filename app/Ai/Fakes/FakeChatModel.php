@@ -8,6 +8,7 @@ use App\Ai\Contracts\ChatModel;
 use App\Ai\Data\ChatRequest;
 use App\Ai\Data\ChatResponse;
 use Generator;
+use RuntimeException;
 
 /**
  * Replies with queued answers, then with a fixed one, and records every request.
@@ -24,6 +25,8 @@ final class FakeChatModel implements ChatModel
     /** @var list<string> */
     private array $queuedAnswers = [];
 
+    private ?RuntimeException $failure = null;
+
     public function respondWith(string ...$answers): self
     {
         array_push($this->queuedAnswers, ...array_values($answers));
@@ -31,9 +34,20 @@ final class FakeChatModel implements ChatModel
         return $this;
     }
 
+    public function failWith(RuntimeException $failure): self
+    {
+        $this->failure = $failure;
+
+        return $this;
+    }
+
     public function generate(ChatRequest $request): ChatResponse
     {
         $this->requests[] = $request;
+
+        if ($this->failure !== null) {
+            throw $this->failure;
+        }
 
         $answer = array_shift($this->queuedAnswers) ?? self::DEFAULT_ANSWER;
 

@@ -14,17 +14,21 @@ use Laravel\Ai\Streaming\Events\TextDelta;
 
 final readonly class LaravelAiChatModel implements ChatModel
 {
+    /**
+     * @param  array<string, array<string, mixed>>  $providerOptions
+     */
     public function __construct(
         #[Config('docschat.ai.chat.provider')] private string $provider,
         #[Config('docschat.ai.chat.model')] private string $model,
         #[Config('docschat.ai.chat.timeout')] private int $timeout,
+        #[Config('docschat.ai.chat.provider_options')] private array $providerOptions = [],
     ) {}
 
     public function generate(ChatRequest $request): ChatResponse
     {
         $model = $request->model ?? $this->model;
 
-        $response = (new ChatCompletionAgent($request))->prompt(
+        $response = (new ChatCompletionAgent($request, $this->providerOptions))->prompt(
             $request->prompt,
             provider: $this->provider,
             model: $model,
@@ -46,7 +50,7 @@ final readonly class LaravelAiChatModel implements ChatModel
     {
         $model = $request->model ?? $this->model;
 
-        $stream = (new ChatCompletionAgent($request))->stream(
+        $stream = (new ChatCompletionAgent($request, $this->providerOptions))->stream(
             $request->prompt,
             provider: $this->provider,
             model: $model,
