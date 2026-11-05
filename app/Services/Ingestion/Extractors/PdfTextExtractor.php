@@ -24,7 +24,7 @@ use Illuminate\Process\Factory as ProcessFactory;
  */
 final readonly class PdfTextExtractor implements TextExtractor
 {
-    private const float HEADING_SIZE_RATIO = 1.15;
+    private const float HEADING_SIZE_RATIO = 1.1;
 
     private const int MAX_HEADING_WORDS = 15;
 

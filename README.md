@@ -23,12 +23,29 @@ docker compose build
 docker compose run --rm --no-deps app composer install
 docker compose run --rm --no-deps app php artisan key:generate
 docker compose up -d
-docker compose exec app php artisan migrate
+docker compose exec app php artisan migrate --seed
 ```
+
+Seeding creates the demo bot, Seabreeze Hotels (a fictional company), and queues its seven documents for ingestion. Embeddings need `OPENAI_API_KEY`. To run everything locally without a key, set `DOCSCHAT_AI_DRIVER=fake`.
 
 - App: http://localhost:8000
 - Health check: http://localhost:8000/up
 - Horizon: http://localhost:8000/horizon
+
+## Ingesting documents
+
+```bash
+docker compose exec app php artisan docschat:ingest path/to/guide.pdf --title="Guest Guide"
+docker compose exec app php artisan docschat:ingest https://example.com/faq --bot=seabreeze
+```
+
+PDF, Markdown and plain text files and public web pages are supported. Each source goes through three queued jobs on the `ingestion` queue:
+
+1. `ExtractText` reads the source into Markdown-flavoured text. PDF headings are recognised from the page layout, and web pages are reduced to their main content after checking `robots.txt`.
+2. `ChunkText` splits the text by headings, then by size (600 tokens, 80 overlap), keeping the heading trail and page number on each chunk.
+3. `EmbedChunks` embeds the chunks in batches and publishes them.
+
+Ingesting the same content again does nothing. A changed document replaces its chunks in one transaction, so a failed re-index leaves the previous version searchable.
 
 ## Services
 
