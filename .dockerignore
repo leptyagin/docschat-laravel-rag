@@ -16,6 +16,7 @@
 !storage
 !tests/evals
 !vite.config.js
+!vite.widget.config.js
 
 public/build
 public/hot

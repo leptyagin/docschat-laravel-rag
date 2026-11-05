@@ -10,6 +10,8 @@ An AI chatbot that answers website visitors' questions only from a company's own
 | Database | PostgreSQL 17 + pgvector (`pgvector/pgvector:0.8.7-pg17`) |
 | Queues & cache | Redis 8, Laravel Horizon |
 | LLM | Laravel AI SDK (OpenAI, Anthropic) |
+| Widget | Vue 3, built into one standalone `widget.js` |
+| Admin panel | Blade and Tailwind CSS |
 | PDF extraction | poppler-utils (`pdftotext`) |
 | Quality | Pest, Larastan (level 6), Laravel Pint, an eval suite for answer quality |
 
@@ -22,13 +24,16 @@ cp .env.example .env
 docker compose build
 docker compose run --rm --no-deps app composer install
 docker compose run --rm --no-deps app php artisan key:generate
+docker compose run --rm node npm install
+docker compose run --rm node npm run build
 docker compose up -d
 docker compose exec app php artisan migrate --seed
 ```
 
 Seeding creates the demo bot, Seabreeze Hotels (a fictional company), and queues its seven documents for ingestion. Embeddings need `OPENAI_API_KEY`. To run everything locally without a key, set `DOCSCHAT_AI_DRIVER=fake`.
 
-- App: http://localhost:8000
+- Demo page: http://localhost:8000
+- Admin panel: http://localhost:8000/admin
 - Health check: http://localhost:8000/up
 - Horizon: http://localhost:8000/horizon
 
@@ -45,7 +50,9 @@ PDF, Markdown and plain text files and public web pages are supported. Each sour
 2. `ChunkText` splits the text by headings, then by size (600 tokens, 80 overlap), keeping the heading trail and page number on each chunk.
 3. `EmbedChunks` embeds the chunks in batches and publishes them.
 
-Ingesting the same content again does nothing. A changed document replaces its chunks in one transaction, so a failed re-index leaves the previous version searchable.
+Ingesting the same content again does nothing. A changed document replaces its chunks in one transaction, so a failed re-index leaves the previous version searchable. The text is indexed again when the embedding model changes, or on request from the admin panel.
+
+The seed PDFs in `database/seed-docs` are built from their Markdown sources with `build-pdf.py`.
 
 ## Answering questions
 
@@ -65,6 +72,28 @@ The answer streams as server-sent events: `started` (with the `conversation_id` 
 6. The message is stored with its tokens, cost and latency.
 
 The system prompts live in `resources/prompts`, and the model prices in `config/docschat.php`.
+
+## Embedding the widget
+
+```html
+<script src="https://your-domain/widget.js" data-bot="PUBLIC_KEY" async></script>
+```
+
+Optional attributes: `data-color` (a hex color), `data-position` (`left` or `right`), `data-greeting`, and `data-open="true"` to open the chat on load on wide screens.
+
+The launcher lives in a shadow root and the chat in an iframe, so the styles of the site and the widget cannot affect each other. `public/embed-test.html` is a plain page with deliberately hostile styles that proves this. Serve it from another origin:
+
+```bash
+python3 -m http.server 9000 --directory public
+```
+
+## Admin panel
+
+Logins come from `.env`: `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the owner, and `DEMO_EMAIL` and `DEMO_PASSWORD` for a read-only account whose credentials are shown on the login page. An account without a password cannot log in. The panel covers the dashboard, documents, conversations with their sources, grouped unanswered questions, and bot settings.
+
+## Protecting the demo
+
+Each IP address may send 20 messages per hour and 60 per day. Once `DAILY_BUDGET_USD` has been spent in a day, the bot stops calling models and says so. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit.
 
 ## Quality evals
 

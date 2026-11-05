@@ -70,7 +70,7 @@ FROM node:${NODE_VERSION}-trixie-slim AS assets
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY vite.config.js ./
+COPY vite.config.js vite.widget.config.js ./
 COPY resources ./resources
 COPY public ./public
 RUN npm run build
@@ -85,6 +85,7 @@ USER app
 COPY --chown=app:app --from=vendor /app/vendor ./vendor
 COPY --chown=app:app . .
 COPY --chown=app:app --from=assets /app/public/build ./public/build
+COPY --chown=app:app --from=assets /app/public/widget.js ./public/widget.js
 
 RUN composer dump-autoload --classmap-authoritative --no-dev \
     && php artisan package:discover --ansi \
