@@ -19,7 +19,7 @@ final readonly class QueryRewriter
         private ChatModel $chat,
         private PromptLibrary $prompts,
         #[Config('docschat.ai.chat.rewrite_model')] private string $model,
-        #[Config('docschat.answers.max_rewrite_tokens')] private int $maxTokens,
+        #[Config('docschat.ai.chat.max_rewrite_tokens')] private int $maxTokens,
     ) {}
 
     /**

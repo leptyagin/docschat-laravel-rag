@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property MessageFeedback|null $feedback
  * @property RefusalReason|null $refusal_reason
  * @property list<int>|null $cited_chunk_ids
+ * @property list<array{number: int, title: string, page: int|null, url: string|null, excerpt: string}>|null $sources
  */
 #[Fillable([
     'conversation_id',
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'content',
     'rewritten_query',
     'cited_chunk_ids',
+    'sources',
     'answered',
     'refusal_reason',
     'model',
@@ -57,6 +59,7 @@ class Message extends Model
             'feedback' => MessageFeedback::class,
             'refusal_reason' => RefusalReason::class,
             'cited_chunk_ids' => 'array',
+            'sources' => 'array',
             'answered' => 'boolean',
             'cost_usd' => 'decimal:6',
         ];

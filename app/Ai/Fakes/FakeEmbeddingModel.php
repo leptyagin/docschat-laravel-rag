@@ -7,55 +7,26 @@ namespace App\Ai\Fakes;
 use App\Ai\Contracts\EmbeddingModel;
 use App\Ai\Data\EmbeddingResult;
 use Illuminate\Container\Attributes\Config;
-use RuntimeException;
 
 /**
  * Hashes each word into a dimension of a normalised vector. Texts that share
  * words end up close together, so retrieval behaves sensibly without a provider.
  */
-final class FakeEmbeddingModel implements EmbeddingModel
+final readonly class FakeEmbeddingModel implements EmbeddingModel
 {
-    public const string MODEL = 'fake-embedding';
-
-    /** @var list<list<string>> */
-    public private(set) array $batches = [];
-
-    private ?RuntimeException $failure = null;
-
-    /** @var list<float>|null */
-    private ?array $fixedVector = null;
+    private const string MODEL = 'fake-embedding';
 
     public function __construct(
-        #[Config('docschat.ai.embeddings.dimensions')] private readonly int $dimensions = 1536,
+        #[Config('docschat.ai.embeddings.dimensions')] private int $dimensions = 1536,
     ) {}
 
-    /**
-     * Answers every text with the given vector.
-     *
-     * @param  list<float>  $vector
-     */
-    public function returnVector(array $vector): self
+    public function name(): string
     {
-        $this->fixedVector = $vector;
-
-        return $this;
-    }
-
-    public function failWith(RuntimeException $failure): self
-    {
-        $this->failure = $failure;
-
-        return $this;
+        return self::MODEL;
     }
 
     public function embed(array $texts): EmbeddingResult
     {
-        if ($this->failure !== null) {
-            throw $this->failure;
-        }
-
-        $this->batches[] = $texts;
-
         return new EmbeddingResult(
             vectors: array_map($this->vectorFor(...), $texts),
             model: self::MODEL,
@@ -68,10 +39,6 @@ final class FakeEmbeddingModel implements EmbeddingModel
      */
     private function vectorFor(string $text): array
     {
-        if ($this->fixedVector !== null) {
-            return $this->fixedVector;
-        }
-
         $vector = array_fill(0, $this->dimensions, 0.0);
 
         preg_match_all('/[\p{L}\p{N}]+/u', mb_strtolower($text), $words);

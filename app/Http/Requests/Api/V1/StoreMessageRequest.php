@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Bot;
-use App\Services\Answer\VisitorHasher;
+use App\Rules\ConversationTokenOfBot;
+use App\Services\Answer\ConversationTokens;
+use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 final class StoreMessageRequest extends FormRequest
 {
@@ -19,22 +19,18 @@ final class StoreMessageRequest extends FormRequest
     }
 
     /**
-     * A conversation of another bot or visitor fails exactly like one that does
-     * not exist, so identifiers cannot be probed.
-     *
-     * @return array<string, array<int, ValidationRule|string|object>>
+     * @return array<string, list<ValidationRule|string>>
      */
-    public function rules(): array
-    {
+    public function rules(
+        ConversationTokens $tokens,
+        #[Config('docschat.answers.max_question_length')] int $maxQuestionLength,
+    ): array {
+        /** @var Bot $bot */
+        $bot = $this->route('bot');
+
         return [
-            'question' => ['required', 'string', 'max:'.config()->integer('docschat.answers.max_question_length')],
-            'conversation_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('conversations', 'id')->where(fn (Builder $query): Builder => $query
-                    ->where('bot_id', $this->routeBot()->id)
-                    ->where('visitor_hash', $this->visitorHash())),
-            ],
+            'question' => ['required', 'string', "max:{$maxQuestionLength}", 'not_regex:/\x00/'],
+            'conversation_token' => ['nullable', 'string', new ConversationTokenOfBot($bot, $tokens)],
         ];
     }
 
@@ -43,19 +39,8 @@ final class StoreMessageRequest extends FormRequest
         return $this->string('question')->toString();
     }
 
-    public function conversationId(): ?int
+    public function conversationToken(): ?string
     {
-        return $this->filled('conversation_id') ? $this->integer('conversation_id') : null;
-    }
-
-    public function visitorHash(): string
-    {
-        return app(VisitorHasher::class)->hash($this->ip(), $this->userAgent());
-    }
-
-    private function routeBot(): Bot
-    {
-        /** @var Bot */
-        return $this->route('bot');
+        return $this->filled('conversation_token') ? $this->string('conversation_token')->toString() : null;
     }
 }

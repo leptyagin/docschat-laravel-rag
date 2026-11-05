@@ -46,9 +46,9 @@ final readonly class AnswerPromptBuilder
             $items[] = $this->contextItem($index + 1, $retrieved);
         }
 
-        $prompt = "<context>\n".implode("\n", $items)."\n</context>\n\nQuestion: ".$question;
+        $prompt = "<context>\n".implode("\n", $items)."\n</context>\n\nQuestion: ".$this->neutralize($question);
 
-        return $searchQuery === $question ? $prompt : $prompt."\nThe question in full: ".$searchQuery;
+        return $searchQuery === $question ? $prompt : $prompt."\nThe question in full: ".$this->neutralize($searchQuery);
     }
 
     private function contextItem(int $number, RetrievedChunk $retrieved): string
@@ -66,11 +66,11 @@ final readonly class AnswerPromptBuilder
     }
 
     /**
-     * Document text must not be able to close its own item and pose as part of
-     * the prompt, so anything resembling these tags is defused.
+     * Neither a document nor a visitor may close a context item and pose as part
+     * of the prompt, so anything resembling these tags is defused.
      */
-    private function neutralize(string $content): string
+    private function neutralize(string $text): string
     {
-        return (string) preg_replace('/<(\/?)(context|item)\b/i', '< $1$2', $content);
+        return (string) preg_replace('/<(\/?)(context|item)\b/i', '< $1$2', $text);
     }
 }

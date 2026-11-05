@@ -9,4 +9,13 @@ enum RefusalReason: string
     case LowSimilarity = 'low_similarity';
     case NoCitation = 'no_citation';
     case ModelError = 'model_error';
+    case BudgetExceeded = 'budget_exceeded';
+
+    /**
+     * Whether the documents could not answer, as opposed to the service being down.
+     */
+    public function isUnanswered(): bool
+    {
+        return $this === self::LowSimilarity || $this === self::NoCitation;
+    }
 }

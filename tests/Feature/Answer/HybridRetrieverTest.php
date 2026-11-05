@@ -156,7 +156,7 @@ it('returns no chunks and no similarity for a bot without documents', function (
         ->and($result->bestSimilarity)->toBeNull();
 });
 
-it('loads chunk documents without the extraction payload or extra queries per chunk', function (): void {
+it('loads chunks and documents in a constant number of queries, without their vectors', function (): void {
     fakeEmbeddings()->returnVector(queryVector());
     $bot = Bot::factory()->create();
 
@@ -173,7 +173,8 @@ it('loads chunk documents without the extraction payload or extra queries per ch
 
     expect($titles)->toHaveCount(4)
         ->and(DB::getQueryLog())->toHaveCount(4)
-        ->and(collect(DB::getQueryLog())->pluck('query')->implode(' '))->not->toContain('"documents".*');
+        ->and($result->chunks[0]->chunk->getAttributes())->not->toHaveKeys(['embedding', 'draft_embedding', 'tsv'])
+        ->and($result->chunks[0]->chunk->document->getAttributes())->not->toHaveKey('extraction');
 });
 
 it('records the embedding usage of the query', function (): void {

@@ -2,19 +2,30 @@
 
 declare(strict_types=1);
 
+use App\Ai\Contracts\ChatModel;
 use App\Ai\Contracts\EmbeddingModel;
-use App\Ai\Fakes\FakeEmbeddingModel;
 use App\Services\Ingestion\Web\HostResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\ScriptedChatModel;
+use Tests\Support\ScriptedEmbeddingModel;
 use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->in('Feature');
 
-function fakeEmbeddings(): FakeEmbeddingModel
+function fakeChat(string ...$answers): ScriptedChatModel
 {
-    $embeddings = new FakeEmbeddingModel;
+    $chat = new ScriptedChatModel()->respondWith(...$answers);
+
+    app()->instance(ChatModel::class, $chat);
+
+    return $chat;
+}
+
+function fakeEmbeddings(): ScriptedEmbeddingModel
+{
+    $embeddings = new ScriptedEmbeddingModel;
 
     app()->instance(EmbeddingModel::class, $embeddings);
 
@@ -47,7 +58,7 @@ function fakeDns(array $addresses = ['93.184.216.34']): void
  */
 function markdownFile(string $contents, string $name = 'guide.md'): string
 {
-    $path = sys_get_temp_dir().'/docschat-tests/'.$name;
+    $path = sys_get_temp_dir().'/docschat-tests/'.getmypid().'/'.$name;
 
     if (! is_dir(dirname($path))) {
         mkdir(dirname($path), recursive: true);

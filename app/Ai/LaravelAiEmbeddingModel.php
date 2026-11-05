@@ -19,6 +19,11 @@ final readonly class LaravelAiEmbeddingModel implements EmbeddingModel
         #[Config('docschat.ai.embeddings.timeout')] private int $timeout,
     ) {}
 
+    public function name(): string
+    {
+        return $this->model;
+    }
+
     public function embed(array $texts): EmbeddingResult
     {
         $response = Embeddings::for($texts)

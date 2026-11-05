@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Data\Answer;
 
-use App\Models\Conversation;
 use App\Models\Message;
 
 final readonly class AnswerEvent
@@ -17,9 +16,9 @@ final readonly class AnswerEvent
         public array $data,
     ) {}
 
-    public static function started(Conversation $conversation): self
+    public static function started(string $conversationToken): self
     {
-        return new self(AnswerEventType::Started, ['conversation_id' => $conversation->id]);
+        return new self(AnswerEventType::Started, ['conversation_token' => $conversationToken]);
     }
 
     public static function delta(string $text): self
@@ -37,13 +36,5 @@ final readonly class AnswerEvent
             'answered' => $message->answered,
             'sources' => array_map(fn (Source $source): array => $source->toArray(), $sources),
         ]);
-    }
-
-    /**
-     * Renders the event in the Server-Sent Events wire format.
-     */
-    public function toServerSentEvent(): string
-    {
-        return sprintf("event: %s\ndata: %s\n\n", $this->type->value, json_encode($this->data, JSON_THROW_ON_ERROR));
     }
 }

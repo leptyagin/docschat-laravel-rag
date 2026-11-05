@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-use App\Ai\Contracts\ChatModel;
-use App\Ai\Fakes\FakeChatModel;
 use App\Enums\MessageRole;
 use App\Models\Bot;
 use App\Models\Chunk;
 use App\Models\Conversation;
 use App\Models\Document;
 use App\Models\Message;
-use App\Services\Answer\VisitorHasher;
+use App\Services\Answer\ConversationTokens;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 use function Pest\Laravel\postJson;
+use function Pest\Laravel\withHeader;
 use function Pest\Laravel\withServerVariables;
 
 function chattingBot(string ...$answers): Bot
 {
-    app()->instance(ChatModel::class, new FakeChatModel()->respondWith(...$answers));
+    fakeChat(...$answers);
     fakeEmbeddings()->returnVector(array_pad([1.0], 1536, 0.0));
 
     $bot = Bot::factory()->create();
@@ -55,11 +55,6 @@ function serverSentEvents(TestResponse $response): array
     );
 }
 
-function currentVisitorHash(): string
-{
-    return app(VisitorHasher::class)->hash('127.0.0.1', 'Symfony');
-}
-
 it('streams an answer as server-sent events', function (): void {
     $bot = chattingBot('Dogs are welcome [1].');
 
@@ -91,46 +86,94 @@ it('starts a conversation and stores both messages', function (): void {
         ->and($conversation->messages()->orderBy('id')->pluck('role')->all())->toBe([MessageRole::User, MessageRole::Assistant]);
 });
 
-it('never stores the raw IP address of a visitor', function (): void {
+it('stores a keyed hash instead of the IP address of a visitor', function (): void {
     $bot = chattingBot('Yes [1].');
 
     withServerVariables(['REMOTE_ADDR' => '203.0.113.7']);
     postMessage($bot, ['question' => 'Are dogs allowed?'])->streamedContent();
 
-    $conversation = Conversation::query()->firstOrFail();
+    $hash = Conversation::query()->firstOrFail()->visitor_hash;
 
-    expect($conversation->visitor_hash)->toHaveLength(64)
-        ->and($conversation->visitor_hash)->not->toBe(hash('sha256', '203.0.113.7|Symfony'))
-        ->and(json_encode($conversation->toArray()))->not->toContain('203.0.113.7');
+    expect($hash)->toBe(hash_hmac('sha256', '203.0.113.7|Symfony', (string) config('app.key')))
+        ->and(DB::table('conversations')->whereRaw('visitor_hash like ?', ['%203.0.113.7%'])->exists())->toBeFalse();
 });
 
-it('continues the conversation of the same visitor', function (): void {
+it('continues a conversation from its token, even from a new IP address', function (): void {
     $bot = chattingBot('Query', 'Yes [1].');
-    $conversation = Conversation::factory()->for($bot)->create(['visitor_hash' => currentVisitorHash()]);
+    $conversation = Conversation::factory()->for($bot)->create();
     Message::factory()->for($conversation)->create();
 
-    postMessage($bot, ['question' => 'And cats?', 'conversation_id' => $conversation->id])->assertOk()->streamedContent();
+    withServerVariables(['REMOTE_ADDR' => '203.0.113.99']);
+    postMessage($bot, ['question' => 'And cats?', 'conversation_token' => app(ConversationTokens::class)->issue($conversation)])
+        ->assertOk()
+        ->streamedContent();
 
     expect(Conversation::query()->count())->toBe(1)
         ->and($conversation->messages()->count())->toBe(3);
 });
 
-it('rejects a conversation of another visitor with 422', function (): void {
+it('hands out a token that continues the same conversation', function (): void {
+    $bot = chattingBot('Yes [1].', 'Query', 'Yes [1].');
+
+    $first = serverSentEvents(postMessage($bot, ['question' => 'Hello']));
+
+    postMessage($bot, ['question' => 'And cats?', 'conversation_token' => $first[0]['data']['conversation_token']])
+        ->assertOk()
+        ->streamedContent();
+
+    expect(Conversation::query()->count())->toBe(1);
+});
+
+it('rejects a forged conversation token with 422', function (): void {
     $bot = chattingBot();
     $conversation = Conversation::factory()->for($bot)->create();
 
-    postMessage($bot, ['question' => 'Hello', 'conversation_id' => $conversation->id])
+    postMessage($bot, ['question' => 'Hello', 'conversation_token' => "{$conversation->id}.forged"])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors('conversation_id');
+        ->assertJsonValidationErrors('conversation_token');
 });
 
 it('rejects a conversation of another bot with 422', function (): void {
     $bot = chattingBot();
-    $conversation = Conversation::factory()->create(['visitor_hash' => currentVisitorHash()]);
+    $conversation = Conversation::factory()->create();
 
-    postMessage($bot, ['question' => 'Hello', 'conversation_id' => $conversation->id])
+    postMessage($bot, ['question' => 'Hello', 'conversation_token' => app(ConversationTokens::class)->issue($conversation)])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors('conversation_id');
+        ->assertJsonValidationErrors('conversation_token');
+});
+
+it('limits a visitor to the configured messages per hour with a friendly 429', function (): void {
+    config()->set('docschat.rate_limits.per_hour', 2);
+    $bot = chattingBot();
+
+    postMessage($bot, ['question' => 'One'])->assertOk()->streamedContent();
+    postMessage($bot, ['question' => 'Two'])->assertOk()->streamedContent();
+
+    postMessage($bot, ['question' => 'Three'])
+        ->assertTooManyRequests()
+        ->assertJsonPath('message', "You've reached the message limit for this demo. Please come back a little later.");
+
+    expect(Conversation::query()->count())->toBe(2);
+});
+
+it('counts the limit per IP address, not per user agent', function (): void {
+    config()->set('docschat.rate_limits.per_hour', 1);
+    $bot = chattingBot();
+
+    postMessage($bot, ['question' => 'One'])->assertOk()->streamedContent();
+
+    withHeader('User-Agent', 'Another browser');
+
+    postMessage($bot, ['question' => 'Two'])->assertTooManyRequests();
+});
+
+it('limits a visitor per day as well', function (): void {
+    config()->set('docschat.rate_limits.per_day', 1);
+    $bot = chattingBot();
+
+    postMessage($bot, ['question' => 'One'])->assertOk()->streamedContent();
+
+    postMessage($bot, ['question' => 'Two'])->assertTooManyRequests();
 });
 
 it('rejects an invalid question with 422', function (mixed $question): void {
@@ -144,6 +187,7 @@ it('rejects an invalid question with 422', function (mixed $question): void {
     'blank' => '   ',
     'not text' => [['nested']],
     'one character too long' => str_repeat('a', 501),
+    'containing a NUL byte' => "a\u{0000}b",
 ]);
 
 it('accepts a question at the maximum length', function (): void {

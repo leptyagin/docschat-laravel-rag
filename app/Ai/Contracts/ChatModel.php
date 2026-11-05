@@ -10,6 +10,11 @@ use Generator;
 
 interface ChatModel
 {
+    /**
+     * The model used when a request does not name one.
+     */
+    public function name(): string;
+
     public function generate(ChatRequest $request): ChatResponse;
 
     /**

@@ -43,7 +43,6 @@ function openAiResponse(): array
 }
 
 it('switches reasoning off and caps the answer in the request to OpenAI', function (): void {
-    Http::preventStrayRequests();
     useRealModels();
     Http::fake(['api.openai.com/v1/responses' => Http::response(openAiResponse())]);
 
@@ -63,8 +62,54 @@ it('switches reasoning off and caps the answer in the request to OpenAI', functi
     });
 });
 
+it('streams text and reports token usage from the real gateway', function (): void {
+    useRealModels();
+    $events = [
+        ['type' => 'response.created', 'response' => ['id' => 'r1', 'model' => 'gpt-6-luna']],
+        ['type' => 'response.output_item.added', 'item' => ['id' => 'm1', 'type' => 'message']],
+        ['type' => 'response.output_text.delta', 'item_id' => 'm1', 'delta' => 'Hello '],
+        ['type' => 'response.output_text.delta', 'item_id' => 'm1', 'delta' => 'there'],
+        ['type' => 'response.output_text.done', 'item_id' => 'm1', 'text' => 'Hello there'],
+        ['type' => 'response.completed', 'response' => ['id' => 'r1', 'status' => 'completed', 'output' => [], 'usage' => ['input_tokens' => 120, 'output_tokens' => 8]]],
+    ];
+    $body = implode('', array_map(fn (array $event): string => 'data: '.json_encode($event)."\n\n", $events));
+    Http::fake(['api.openai.com/v1/responses' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
+
+    $stream = app(ChatModel::class)->stream(new ChatRequest('System rules.', 'Question?', maxTokens: 400));
+    $deltas = iterator_to_array($stream, false);
+
+    expect($deltas)->toBe(['Hello ', 'there'])
+        ->and($stream->getReturn()->text)->toBe('Hello there')
+        ->and($stream->getReturn()->promptTokens)->toBe(120)
+        ->and($stream->getReturn()->completionTokens)->toBe(8);
+});
+
+it('switches thinking off and caps the answer in the request to Anthropic', function (): void {
+    config()->set('ai.providers.anthropic.key', 'test-key');
+    config()->set('docschat.ai.chat.provider', 'anthropic');
+    config()->set('docschat.ai.chat.model', 'claude-haiku-5-5');
+    app()->bind(ChatModel::class, LaravelAiChatModel::class);
+    Http::fake(['api.anthropic.com/v1/messages' => Http::response([
+        'id' => 'msg_1',
+        'type' => 'message',
+        'role' => 'assistant',
+        'model' => 'claude-haiku-5-5',
+        'content' => [['type' => 'text', 'text' => 'Dogs are welcome [1].']],
+        'stop_reason' => 'end_turn',
+        'usage' => ['input_tokens' => 50, 'output_tokens' => 6],
+    ])]);
+
+    $response = app(ChatModel::class)->generate(new ChatRequest('System rules.', 'Question?', maxTokens: 400));
+
+    expect($response->text)->toBe('Dogs are welcome [1].')
+        ->and($response->promptTokens)->toBe(50);
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['model'] === 'claude-haiku-5-5'
+        && $request->data()['max_tokens'] === 400
+        && $request->data()['thinking'] === ['type' => 'disabled']);
+});
+
 it('requests embeddings with the configured model and dimensions', function (): void {
-    Http::preventStrayRequests();
     useRealModels();
     Http::fake(['api.openai.com/v1/embeddings' => Http::response([
         'object' => 'list',

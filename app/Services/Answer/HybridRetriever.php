@@ -63,25 +63,33 @@ final readonly class HybridRetriever
         #[Config('docschat.retrieval.rrf_k')] private int $rrfK,
     ) {}
 
+    /**
+     * A chunk that a re-index replaced between ranking and loading is skipped.
+     */
     public function retrieve(Bot $bot, string $query): RetrievalResult
     {
         $embedding = $this->embeddings->embed([$query]);
         $rows = $this->rank($bot, $query, $embedding->vectors[0]);
 
         $chunks = Chunk::query()
-            ->with('document:id,title,source_type,source_url')
-            ->findMany(array_map(fn (object $row): int => $row->id, $rows))
+            ->with('document:id,title,source_url')
+            ->findMany(array_map(fn (object $row): int => $row->id, $rows), ['id', 'document_id', 'heading', 'page', 'content'])
             ->keyBy('id');
 
-        return new RetrievalResult(
-            chunks: array_map(
-                fn (object $row): RetrievedChunk => new RetrievedChunk(
+        $retrieved = [];
+
+        foreach ($rows as $row) {
+            if ($chunks->has($row->id)) {
+                $retrieved[] = new RetrievedChunk(
                     chunk: $chunks[$row->id],
                     similarity: $row->similarity === null ? null : (float) $row->similarity,
                     score: (float) $row->score,
-                ),
-                $rows,
-            ),
+                );
+            }
+        }
+
+        return new RetrievalResult(
+            chunks: $retrieved,
             bestSimilarity: isset($rows[0]->best_similarity) ? (float) $rows[0]->best_similarity : null,
             usage: new ModelUsage($embedding->model, $embedding->promptTokens),
         );

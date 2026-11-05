@@ -22,15 +22,26 @@ final class AnswerDraft
     public array $sources = [];
 
     /** @var list<ModelUsage> */
-    public array $usages = [];
+    public array $chatUsages = [];
+
+    /** @var list<ModelUsage> */
+    public array $embeddingUsages = [];
+
+    /**
+     * @return list<ModelUsage>
+     */
+    public function usages(): array
+    {
+        return [...$this->chatUsages, ...$this->embeddingUsages];
+    }
 
     public function promptTokens(): int
     {
-        return array_sum(array_map(fn (ModelUsage $usage): int => $usage->promptTokens, $this->usages));
+        return array_sum(array_map(fn (ModelUsage $usage): int => $usage->promptTokens, $this->chatUsages));
     }
 
     public function completionTokens(): int
     {
-        return array_sum(array_map(fn (ModelUsage $usage): int => $usage->completionTokens, $this->usages));
+        return array_sum(array_map(fn (ModelUsage $usage): int => $usage->completionTokens, $this->chatUsages));
     }
 }

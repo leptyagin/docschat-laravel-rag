@@ -9,6 +9,11 @@ use App\Ai\Data\EmbeddingResult;
 interface EmbeddingModel
 {
     /**
+     * The model name, recorded so that vectors from another model can be detected.
+     */
+    public function name(): string;
+
+    /**
      * Vectors come back in the order of the given texts.
      *
      * @param  non-empty-list<string>  $texts

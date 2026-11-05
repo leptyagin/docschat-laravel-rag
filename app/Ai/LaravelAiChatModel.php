@@ -24,6 +24,11 @@ final readonly class LaravelAiChatModel implements ChatModel
         #[Config('docschat.ai.chat.provider_options')] private array $providerOptions = [],
     ) {}
 
+    public function name(): string
+    {
+        return $this->model;
+    }
+
     public function generate(ChatRequest $request): ChatResponse
     {
         $model = $request->model ?? $this->model;
