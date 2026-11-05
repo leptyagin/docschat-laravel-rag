@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 use App\Ai\Contracts\ChatModel;
 use App\Ai\Contracts\EmbeddingModel;
+use App\Auth\AdminUser;
+use App\Enums\AdminRole;
+use App\Models\Bot;
 use App\Services\Ingestion\Web\HostResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\ScriptedChatModel;
 use Tests\Support\ScriptedEmbeddingModel;
 use Tests\TestCase;
+
+use function Pest\Laravel\actingAs;
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
@@ -67,4 +72,19 @@ function markdownFile(string $contents, string $name = 'guide.md'): string
     file_put_contents($path, $contents);
 
     return $path;
+}
+
+function actingAsAdmin(): void
+{
+    actingAs(new AdminUser(AdminRole::Admin, 'owner@example.com', 'secret'));
+}
+
+function actingAsDemo(): void
+{
+    actingAs(new AdminUser(AdminRole::Demo, 'demo@example.com', 'demo'));
+}
+
+function managedBot(): Bot
+{
+    return Bot::factory()->create(['slug' => 'seabreeze']);
 }

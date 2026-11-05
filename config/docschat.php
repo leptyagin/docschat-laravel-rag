@@ -104,6 +104,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Admin Panel And Public Demo
+    |--------------------------------------------------------------------------
+    |
+    | An account without a password cannot log in. The demo account is read-only
+    | and its credentials are shown on the login page, so never reuse a real one.
+    | Links without a value are not shown on the landing page.
+    |
+    */
+
+    'admin' => [
+        'accounts' => [
+            'admin' => ['email' => env('ADMIN_EMAIL'), 'password' => env('ADMIN_PASSWORD')],
+            'demo' => ['email' => env('DEMO_EMAIL'), 'password' => env('DEMO_PASSWORD')],
+        ],
+    ],
+
+    'demo' => [
+        'bot_slug' => 'seabreeze',
+        'bot_key' => env('DEMO_BOT_KEY', 'pk_seabreeze_demo'),
+
+        'links' => [
+            'repository_url' => env('DEMO_REPOSITORY_URL'),
+            'author_url' => env('DEMO_AUTHOR_URL'),
+            'author_label' => env('DEMO_AUTHOR_LABEL', 'Work with me'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Demo Protection
     |--------------------------------------------------------------------------
     |

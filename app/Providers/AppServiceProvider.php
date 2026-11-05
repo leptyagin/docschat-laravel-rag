@@ -10,13 +10,20 @@ use App\Ai\Fakes\FakeChatModel;
 use App\Ai\Fakes\FakeEmbeddingModel;
 use App\Ai\LaravelAiChatModel;
 use App\Ai\LaravelAiEmbeddingModel;
+use App\Auth\ConfiguredUserProvider;
+use App\Models\Conversation;
+use App\Models\Document;
+use App\Services\Admin\ManagedBot;
 use App\Services\Ingestion\Web\DnsHostResolver;
 use App\Services\Ingestion\Web\HostResolver;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 
@@ -47,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureTrustedProxies();
         $this->configureRateLimiting();
+        $this->configureAuthentication();
+        $this->configureRouteBindings();
     }
 
     /**
@@ -93,6 +102,23 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        RateLimiter::for('feedback', fn (Request $request): Limit => Limit::perMinute(30)->by((string) $request->ip()));
         RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)->by((string) $request->ip()));
+    }
+
+    private function configureAuthentication(): void
+    {
+        Auth::provider('configured', fn (Application $app): ConfiguredUserProvider => new ConfiguredUserProvider(
+            $app->make('config')->get('docschat.admin.accounts'),
+        ));
+    }
+
+    /**
+     * The panel can only reach records of the bot it manages.
+     */
+    private function configureRouteBindings(): void
+    {
+        Route::bind('managedDocument', fn (string $id): Document => $this->app->make(ManagedBot::class)->get()->documents()->findOrFail($id));
+        Route::bind('managedConversation', fn (string $id): Conversation => $this->app->make(ManagedBot::class)->get()->conversations()->findOrFail($id));
     }
 }
