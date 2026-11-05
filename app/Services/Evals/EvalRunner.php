@@ -13,10 +13,12 @@ use App\Enums\MessageRole;
 use App\Models\Bot;
 use App\Models\Conversation;
 use Closure;
+use Throwable;
 
 /**
  * Sends questions through the same pipeline as visitors. The conversations are
- * removed afterwards, so a run leaves nothing in the statistics of the bot.
+ * removed afterwards, so a run leaves nothing in the statistics of the bot, and
+ * a failing question is recorded rather than losing the paid results of the rest.
  */
 final readonly class EvalRunner
 {
@@ -70,6 +72,10 @@ final readonly class EvalRunner
                 costUsd: (string) $message->cost_usd,
                 latencyMs: (int) $message->latency_ms,
             );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return new EvalResult($question, $exception->getMessage(), false, 'exception', [], '0', 0);
         } finally {
             $conversation->delete();
         }

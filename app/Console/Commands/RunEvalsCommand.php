@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
     {--bot=seabreeze : The slug of the bot to test}
     {--questions=tests/evals/questions.yaml : The question file, relative to the project root}')]
 #[Description('Run the quality evals against the answer pipeline and save a report')]
-final class RunEvals extends Command
+final class RunEvalsCommand extends Command
 {
     public function handle(EvalSuite $suite, EvalRunner $runner, Filesystem $files): int
     {
@@ -35,7 +35,15 @@ final class RunEvals extends Command
             $this->components->warn('The fake driver is active, so these numbers say nothing about real answer quality.');
         }
 
-        $questions = $suite->load(base_path((string) $this->option('questions')));
+        $path = base_path((string) $this->option('questions'));
+
+        if (! $files->exists($path)) {
+            $this->components->error("The question file [{$path}] does not exist.");
+
+            return self::FAILURE;
+        }
+
+        $questions = $suite->load($path);
         $progress = $this->output->createProgressBar(count($questions));
 
         $report = $runner->run($bot, $questions, function () use ($progress): void {
@@ -48,12 +56,12 @@ final class RunEvals extends Command
         $this->renderSummary($report);
         $this->renderFailures($report);
 
-        $path = storage_path('evals/'.now()->format('Y-m-d_His').'.json');
+        $reportPath = storage_path('evals/'.now()->format('Y-m-d_His').'.json');
 
-        $files->ensureDirectoryExists(dirname($path));
-        $files->put($path, json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+        $files->ensureDirectoryExists(dirname($reportPath));
+        $files->put($reportPath, json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
-        $this->components->info("Report saved to {$path}");
+        $this->components->info("Report saved to {$reportPath}");
 
         return self::SUCCESS;
     }
@@ -66,9 +74,10 @@ final class RunEvals extends Command
         $this->table(['Metric', 'Result'], [
             ['Questions', count($report->results)],
             ['Source hit rate', $this->rate($report->sourceHits(), $answerable)],
-            ['Answers with expected facts', $this->rate($report->keywordHits(), $answerable)],
+            ['Answers with expected facts', $this->rate($report->keywordHits(), count($report->withExpectedWords()))],
             ['Correct refusals', $this->rate($report->correctRefusals(), $unanswerable)],
             ['False refusals', $this->rate($report->falseRefusals(), $answerable)],
+            ['Errors', $report->errors()],
             ['Average cost', '$'.$report->averageCost()],
             ['Total cost', '$'.$report->totalCost()],
             ['Average latency', $report->averageLatencyMs().' ms'],

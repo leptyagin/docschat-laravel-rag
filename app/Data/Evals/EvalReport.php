@@ -42,22 +42,35 @@ final readonly class EvalReport
         return count(array_filter($this->answerable(), fn (EvalResult $result): bool => $result->hitExpectedSource()));
     }
 
+    /**
+     * @return list<EvalResult>
+     */
+    public function withExpectedWords(): array
+    {
+        return array_values(array_filter($this->answerable(), fn (EvalResult $result): bool => $result->question->mustContain !== []));
+    }
+
     public function keywordHits(): int
     {
         return count(array_filter(
-            $this->answerable(),
+            $this->withExpectedWords(),
             fn (EvalResult $result): bool => $result->answered && $result->containsExpectedWords(),
         ));
     }
 
     public function correctRefusals(): int
     {
-        return count(array_filter($this->unanswerable(), fn (EvalResult $result): bool => ! $result->answered));
+        return count(array_filter($this->unanswerable(), fn (EvalResult $result): bool => $result->isRefusal()));
     }
 
     public function falseRefusals(): int
     {
-        return count(array_filter($this->answerable(), fn (EvalResult $result): bool => ! $result->answered));
+        return count(array_filter($this->answerable(), fn (EvalResult $result): bool => $result->isRefusal()));
+    }
+
+    public function errors(): int
+    {
+        return count(array_filter($this->results, fn (EvalResult $result): bool => $result->isError()));
     }
 
     /**
@@ -103,8 +116,10 @@ final readonly class EvalReport
                 'unanswerable' => count($this->unanswerable()),
                 'source_hits' => $this->sourceHits(),
                 'keyword_hits' => $this->keywordHits(),
+                'keyword_questions' => count($this->withExpectedWords()),
                 'correct_refusals' => $this->correctRefusals(),
                 'false_refusals' => $this->falseRefusals(),
+                'errors' => $this->errors(),
                 'total_cost_usd' => $this->totalCost(),
                 'average_cost_usd' => $this->averageCost(),
                 'average_latency_ms' => $this->averageLatencyMs(),

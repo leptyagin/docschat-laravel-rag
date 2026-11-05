@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
     {--bot=seabreeze : The slug of the bot that owns the document}
     {--title= : The document title, derived from the source when omitted}')]
 #[Description('Queue a file or URL for ingestion')]
-final class IngestDocument extends Command
+final class IngestDocumentCommand extends Command
 {
     public function handle(IngestFile $ingestFile, IngestUrl $ingestUrl): int
     {

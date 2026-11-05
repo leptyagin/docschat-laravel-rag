@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Data\Evals;
 
+use App\Enums\RefusalReason;
+
 final readonly class EvalResult
 {
     /**
@@ -25,18 +27,34 @@ final readonly class EvalResult
         return in_array($this->question->expectedDocument, $this->citedDocuments, true);
     }
 
+    /**
+     * An outage must not pass for a correct refusal.
+     */
+    public function isError(): bool
+    {
+        return ! $this->answered && RefusalReason::tryFrom((string) $this->refusalReason)?->isUnanswered() !== true;
+    }
+
+    public function isRefusal(): bool
+    {
+        return ! $this->answered && ! $this->isError();
+    }
+
+    /**
+     * A number must stand alone, so that "40" does not match "140" or "400".
+     */
     public function containsExpectedWords(): bool
     {
         return array_all(
             $this->question->mustContain,
-            fn (string $word): bool => mb_stripos($this->answer, $word) !== false,
+            fn (string $word): bool => preg_match('/(?<!\p{N})'.preg_quote($word, '/').'(?!\p{N})/iu', $this->answer) === 1,
         );
     }
 
     public function passed(): bool
     {
         return $this->question->shouldRefuse
-            ? ! $this->answered
+            ? $this->isRefusal()
             : $this->answered && $this->hitExpectedSource() && $this->containsExpectedWords();
     }
 
