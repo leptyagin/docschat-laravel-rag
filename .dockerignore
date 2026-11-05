@@ -14,6 +14,7 @@
 !resources
 !routes
 !storage
+!tests/evals
 !vite.config.js
 
 public/build

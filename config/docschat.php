@@ -21,7 +21,8 @@ return [
             'provider' => env('DOCSCHAT_CHAT_PROVIDER', 'openai'),
             'model' => env('DOCSCHAT_CHAT_MODEL', 'gpt-6-luna'),
             'rewrite_model' => env('DOCSCHAT_REWRITE_MODEL', 'gpt-6-luna'),
-            'timeout' => (int) env('DOCSCHAT_CHAT_TIMEOUT', 30),
+            'max_rewrite_tokens' => 100,
+            'timeout' => 30,
 
             /*
             | Answers come from the retrieved context, so reasoning would only
@@ -36,9 +37,14 @@ return [
         'embeddings' => [
             'provider' => env('DOCSCHAT_EMBEDDING_PROVIDER', 'openai'),
             'model' => env('DOCSCHAT_EMBEDDING_MODEL', 'text-embedding-3-small'),
-            'dimensions' => (int) env('DOCSCHAT_EMBEDDING_DIMENSIONS', 1536),
-            'batch_size' => (int) env('DOCSCHAT_EMBEDDING_BATCH_SIZE', 100),
-            'timeout' => (int) env('DOCSCHAT_EMBEDDING_TIMEOUT', 60),
+
+            /*
+            | The vector columns are created with this size, so changing it
+            | takes a migration as well.
+            */
+            'dimensions' => 1536,
+            'batch_size' => 100,
+            'timeout' => 60,
         ],
     ],
 
@@ -50,19 +56,21 @@ return [
 
     'ingestion' => [
         'disk' => env('DOCSCHAT_DOCUMENTS_DISK', 'local'),
-        'pdf_timeout' => (int) env('DOCSCHAT_PDF_TIMEOUT', 60),
+        'max_file_bytes' => 25 * 1024 * 1024,
+        'max_pdf_pages' => 1000,
+        'pdf_timeout' => 60,
 
         'http' => [
-            'user_agent' => env('DOCSCHAT_CRAWLER_USER_AGENT', 'DocsChatBot/1.0'),
-            'connect_timeout' => (int) env('DOCSCHAT_CRAWLER_CONNECT_TIMEOUT', 5),
-            'timeout' => (int) env('DOCSCHAT_CRAWLER_TIMEOUT', 20),
-            'max_bytes' => (int) env('DOCSCHAT_CRAWLER_MAX_BYTES', 5 * 1024 * 1024),
+            'user_agent' => 'DocsChatBot/1.0',
+            'connect_timeout' => 5,
+            'timeout' => 20,
+            'max_bytes' => 5 * 1024 * 1024,
         ],
     ],
 
     'chunking' => [
-        'target_tokens' => (int) env('DOCSCHAT_CHUNK_TARGET_TOKENS', 600),
-        'overlap_tokens' => (int) env('DOCSCHAT_CHUNK_OVERLAP_TOKENS', 80),
+        'target_tokens' => 600,
+        'overlap_tokens' => 80,
     ],
 
     /*
@@ -76,9 +84,9 @@ return [
     */
 
     'retrieval' => [
-        'candidates' => (int) env('DOCSCHAT_RETRIEVAL_CANDIDATES', 20),
-        'keep' => (int) env('DOCSCHAT_RETRIEVAL_KEEP', 6),
-        'rrf_k' => (int) env('DOCSCHAT_RETRIEVAL_RRF_K', 60),
+        'candidates' => 20,
+        'keep' => 6,
+        'rrf_k' => 60,
         'min_similarity' => (float) env('DOCSCHAT_RETRIEVAL_MIN_SIMILARITY', 0.3),
     ],
 
@@ -89,11 +97,33 @@ return [
     */
 
     'answers' => [
-        'max_question_length' => (int) env('DOCSCHAT_MAX_QUESTION_LENGTH', 500),
+        'max_question_length' => 500,
         'max_answer_tokens' => (int) env('DOCSCHAT_MAX_ANSWER_TOKENS', 400),
-        'max_rewrite_tokens' => (int) env('DOCSCHAT_MAX_REWRITE_TOKENS', 100),
-        'history_messages' => (int) env('DOCSCHAT_HISTORY_MESSAGES', 6),
+        'history_messages' => 6,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Demo Protection
+    |--------------------------------------------------------------------------
+    |
+    | The public demo runs on the owner's API key. Above the daily budget the bot
+    | stops calling models and says so. Per-visitor limits are in messages.
+    |
+    */
+
+    'daily_budget_usd' => (float) env('DAILY_BUDGET_USD', 2.0),
+
+    'rate_limits' => [
+        'per_hour' => 20,
+        'per_day' => 60,
+    ],
+
+    /*
+    | Comma-separated proxy addresses, or "*" behind a load balancer. Without
+    | this, every visitor behind a proxy looks like the same IP address.
+    */
+    'trusted_proxies' => env('TRUSTED_PROXIES', ''),
 
     /*
     |--------------------------------------------------------------------------
