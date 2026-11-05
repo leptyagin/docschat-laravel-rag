@@ -6,6 +6,7 @@ namespace App\Services\Ingestion\Web;
 
 use App\Exceptions\Ingestion\UnprocessableSourceException;
 use Illuminate\Container\Attributes\Config;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
 use RuntimeException;
@@ -21,6 +22,8 @@ final readonly class UrlFetcher
     private const int MAX_REDIRECTS = 5;
 
     private const array DEFAULT_PORTS = ['http' => 80, 'https' => 443];
+
+    private const string TOO_LARGE_MESSAGE = 'The page is too large to ingest.';
 
     public function __construct(
         private HttpFactory $http,
@@ -40,8 +43,6 @@ final readonly class UrlFetcher
             $location = $response->header('Location');
 
             if (! $response->redirect() || $location === '') {
-                $this->ensureWithinSizeLimit($response);
-
                 return $response;
             }
 
@@ -76,17 +77,30 @@ final readonly class UrlFetcher
         $host = (string) $target->getAsciiHost();
         $port = self::DEFAULT_PORTS[$target->getScheme()];
         $address = $this->publicAddressOf($host);
+        $exceededSizeLimit = false;
 
-        return $this->http
-            ->withUserAgent($this->userAgent)
-            ->connectTimeout($this->connectTimeout)
-            ->timeout($this->timeout)
-            ->withoutRedirecting()
-            ->withOptions(['curl' => [
-                CURLOPT_RESOLVE => ["{$host}:{$port}:{$address}"],
-                CURLOPT_MAXFILESIZE_LARGE => $this->maxBytes,
-            ]])
-            ->get($target->toAsciiString());
+        try {
+            $response = $this->http
+                ->withUserAgent($this->userAgent)
+                ->connectTimeout($this->connectTimeout)
+                ->timeout($this->timeout)
+                ->withoutRedirecting()
+                ->withOptions([
+                    'curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$address}"]],
+                    'progress' => function (int $expected, int $received) use (&$exceededSizeLimit): bool {
+                        return $exceededSizeLimit = $received > $this->maxBytes;
+                    },
+                ])
+                ->get($target->toAsciiString());
+        } catch (ConnectionException $exception) {
+            throw $exceededSizeLimit ? new UnprocessableSourceException(self::TOO_LARGE_MESSAGE) : $exception;
+        }
+
+        if (strlen($response->body()) > $this->maxBytes) {
+            throw new UnprocessableSourceException(self::TOO_LARGE_MESSAGE);
+        }
+
+        return $response;
     }
 
     private function publicAddressOf(string $host): string
@@ -108,12 +122,5 @@ final readonly class UrlFetcher
         }
 
         return str_contains($addresses[0], ':') ? "[{$addresses[0]}]" : $addresses[0];
-    }
-
-    private function ensureWithinSizeLimit(Response $response): void
-    {
-        if (strlen($response->body()) > $this->maxBytes) {
-            throw new UnprocessableSourceException('The page is too large to ingest.');
-        }
     }
 }

@@ -9,8 +9,13 @@ use App\Exceptions\Ingestion\UnprocessableSourceException;
 use App\Models\Bot;
 use App\Models\Chunk;
 use App\Models\Document;
+use App\Services\Ingestion\Web\UrlFetcher;
+use GuzzleHttp\Handler\CurlFactory;
+use GuzzleHttp\Handler\EasyHandle;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Request as GuzzleRequest;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 
 const PAGE_URL = 'https://hotel.example/parking';
@@ -173,6 +178,42 @@ it('gives up on a redirect loop', function (): void {
     ]);
 
     expect(ingestPage()->error)->toContain('too many times');
+});
+
+it('sends options the real cURL handler accepts and pins the checked address', function (): void {
+    Http::preventStrayRequests();
+    fakeDns(['93.184.216.34']);
+    $sentOptions = [];
+    Http::fake(function (Request $request, array $options) use (&$sentOptions): PromiseInterface {
+        $sentOptions = $options;
+
+        return htmlResponse();
+    });
+
+    app(UrlFetcher::class)->get(PAGE_URL);
+
+    $handle = new CurlFactory(1)->create(new GuzzleRequest('GET', PAGE_URL), Arr::only($sentOptions, ['curl', 'progress']));
+
+    expect($handle)->toBeInstanceOf(EasyHandle::class)
+        ->and($sentOptions['curl'][CURLOPT_RESOLVE])->toBe(['hotel.example:443:93.184.216.34'])
+        ->and($sentOptions['allow_redirects'])->toBeFalse();
+});
+
+it('aborts a download as soon as it passes the size limit', function (): void {
+    Http::preventStrayRequests();
+    fakeDns();
+    config()->set('docschat.ingestion.http.max_bytes', 100);
+    $sentOptions = [];
+    Http::fake(function (Request $request, array $options) use (&$sentOptions): PromiseInterface {
+        $sentOptions = $options;
+
+        return htmlResponse('<p>Short.</p>');
+    });
+
+    app(UrlFetcher::class)->get(PAGE_URL);
+
+    expect($sentOptions['progress'](0, 100))->toBeFalse()
+        ->and($sentOptions['progress'](0, 101))->toBeTrue();
 });
 
 describe('server-side request forgery', function (): void {
