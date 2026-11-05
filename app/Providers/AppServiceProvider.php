@@ -10,10 +10,22 @@ use App\Ai\Fakes\FakeChatModel;
 use App\Ai\Fakes\FakeEmbeddingModel;
 use App\Ai\LaravelAiChatModel;
 use App\Ai\LaravelAiEmbeddingModel;
+use App\Services\Ingestion\Chunking\EstimatedTokenCounter;
+use App\Services\Ingestion\Chunking\TokenCounter;
+use App\Services\Ingestion\Web\DnsHostResolver;
+use App\Services\Ingestion\Web\HostResolver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
+    /**
+     * @var array<class-string, class-string>
+     */
+    public array $bindings = [
+        TokenCounter::class => EstimatedTokenCounter::class,
+        HostResolver::class => DnsHostResolver::class,
+    ];
+
     /**
      * Register any application services.
      */

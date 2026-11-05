@@ -16,6 +16,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @property DocumentSourceType $source_type
+ * @property DocumentStatus $status
+ * @property ExtractedDocument|null $extraction
+ */
 #[Fillable([
     'bot_id',
     'source_type',

@@ -12,10 +12,12 @@
     "license": "MIT",
     "require": {
         "php": "^8.5",
+        "ext-dom": "*",
         "laravel/ai": "^1.3",
         "laravel/framework": "^13.17",
         "laravel/horizon": "^5.50",
-        "laravel/tinker": "^3.0"
+        "laravel/tinker": "^3.0",
+        "spatie/robots-txt": "^2.5"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

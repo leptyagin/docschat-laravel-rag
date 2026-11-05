@@ -12,6 +12,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property MessageRole $role
+ * @property MessageFeedback|null $feedback
+ * @property list<int>|null $cited_chunk_ids
+ */
 #[Fillable([
     'conversation_id',
     'role',
