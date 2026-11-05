@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\MessageFeedback;
 use App\Enums\MessageRole;
+use App\Enums\RefusalReason;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property MessageRole $role
  * @property MessageFeedback|null $feedback
+ * @property RefusalReason|null $refusal_reason
  * @property list<int>|null $cited_chunk_ids
  */
 #[Fillable([
@@ -53,6 +55,7 @@ class Message extends Model
         return [
             'role' => MessageRole::class,
             'feedback' => MessageFeedback::class,
+            'refusal_reason' => RefusalReason::class,
             'cited_chunk_ids' => 'array',
             'answered' => 'boolean',
             'cost_usd' => 'decimal:6',

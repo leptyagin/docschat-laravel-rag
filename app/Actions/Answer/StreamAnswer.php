@@ -1,0 +1,156 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Actions\Answer;
+
+use App\Ai\Contracts\ChatModel;
+use App\Data\Answer\AnswerDraft;
+use App\Data\Answer\AnswerEvent;
+use App\Data\Answer\ModelUsage;
+use App\Data\Answer\RetrievalResult;
+use App\Data\Answer\Source;
+use App\Enums\MessageRole;
+use App\Enums\RefusalReason;
+use App\Models\Bot;
+use App\Models\Conversation;
+use App\Models\Message;
+use App\Services\Answer\AnswerPromptBuilder;
+use App\Services\Answer\CitationExtractor;
+use App\Services\Answer\CostCalculator;
+use App\Services\Answer\HybridRetriever;
+use App\Services\Answer\QueryRewriter;
+use Generator;
+use Illuminate\Container\Attributes\Config;
+use Throwable;
+
+final readonly class StreamAnswer
+{
+    private const string NOT_IN_DOCUMENTS = "I couldn't find that in our documents. Please contact %s and the team will be happy to help.";
+
+    private const string UNAVAILABLE = "Sorry, I can't answer right now. Please try again in a moment, or contact %s.";
+
+    public function __construct(
+        private QueryRewriter $rewriter,
+        private HybridRetriever $retriever,
+        private ChatModel $chat,
+        private AnswerPromptBuilder $prompts,
+        private CitationExtractor $citations,
+        private CostCalculator $costs,
+        #[Config('docschat.retrieval.min_similarity')] private float $minSimilarity,
+        #[Config('docschat.answers.history_messages')] private int $historyMessages,
+    ) {}
+
+    /**
+     * Runs one question through the pipeline, yielding events as the answer
+     * forms. The generator returns the stored assistant message.
+     *
+     * @return Generator<int, AnswerEvent, mixed, Message>
+     */
+    public function handle(Conversation $conversation, string $question): Generator
+    {
+        $startedAt = hrtime(true);
+        $history = $this->recentHistory($conversation);
+        $userMessage = $conversation->messages()->create(['role' => MessageRole::User, 'content' => $question]);
+        $draft = new AnswerDraft;
+
+        yield AnswerEvent::started($conversation);
+
+        try {
+            yield from $this->compose($draft, $conversation->bot, $userMessage, $history);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $apology = sprintf(self::UNAVAILABLE, $conversation->bot->fallback_contact);
+
+            $draft->refusalReason = RefusalReason::ModelError;
+            $draft->text = trim($draft->text."\n\n".$apology);
+
+            yield AnswerEvent::delta($apology);
+        }
+
+        $message = $this->store($conversation, $draft, $startedAt);
+
+        yield AnswerEvent::completed($message, $draft->sources);
+
+        return $message;
+    }
+
+    /**
+     * @param  list<Message>  $history
+     * @return Generator<int, AnswerEvent, mixed, void>
+     */
+    private function compose(AnswerDraft $draft, Bot $bot, Message $userMessage, array $history): Generator
+    {
+        $question = $userMessage->content;
+        $rewritten = $this->rewriter->rewrite($question, $history);
+
+        $userMessage->update(['rewritten_query' => $rewritten->query]);
+
+        if ($rewritten->usage !== null) {
+            $draft->usages[] = $rewritten->usage;
+        }
+
+        $retrieval = $this->retriever->retrieve($bot, $rewritten->query);
+        $draft->usages[] = $retrieval->usage;
+
+        if ($this->isBelowThreshold($retrieval)) {
+            $draft->refusalReason = RefusalReason::LowSimilarity;
+            $draft->text = sprintf(self::NOT_IN_DOCUMENTS, $bot->fallback_contact);
+
+            yield AnswerEvent::delta($draft->text);
+
+            return;
+        }
+
+        $stream = $this->chat->stream($this->prompts->build($bot, $question, $rewritten->query, $retrieval->chunks));
+
+        foreach ($stream as $delta) {
+            $draft->text .= $delta;
+
+            yield AnswerEvent::delta($delta);
+        }
+
+        $response = $stream->getReturn();
+
+        $draft->model = $response->model;
+        $draft->usages[] = new ModelUsage($response->model, $response->promptTokens, $response->completionTokens);
+        $draft->sources = $this->citations->extract($draft->text, $retrieval->chunks);
+        $draft->refusalReason = $draft->sources === [] ? RefusalReason::NoCitation : null;
+    }
+
+    private function store(Conversation $conversation, AnswerDraft $draft, int $startedAt): Message
+    {
+        return $conversation->messages()->create([
+            'role' => MessageRole::Assistant,
+            'content' => $draft->text,
+            'cited_chunk_ids' => array_map(fn (Source $source): int => $source->chunkId, $draft->sources),
+            'answered' => $draft->refusalReason === null,
+            'refusal_reason' => $draft->refusalReason,
+            'model' => $draft->model,
+            'prompt_tokens' => $draft->promptTokens(),
+            'completion_tokens' => $draft->completionTokens(),
+            'cost_usd' => $this->costs->total($draft->usages),
+            'latency_ms' => (int) ((hrtime(true) - $startedAt) / 1_000_000),
+        ]);
+    }
+
+    /**
+     * @return list<Message> Oldest first.
+     */
+    private function recentHistory(Conversation $conversation): array
+    {
+        return $conversation->messages()
+            ->latest('id')
+            ->limit($this->historyMessages)
+            ->get(['id', 'conversation_id', 'role', 'content'])
+            ->reverse()
+            ->values()
+            ->all();
+    }
+
+    private function isBelowThreshold(RetrievalResult $retrieval): bool
+    {
+        return $retrieval->bestSimilarity === null || $retrieval->bestSimilarity < $this->minSimilarity;
+    }
+}
