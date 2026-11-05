@@ -11,7 +11,7 @@ An AI chatbot that answers website visitors' questions only from a company's own
 | Queues & cache | Redis 8, Laravel Horizon |
 | LLM | Laravel AI SDK (OpenAI, Anthropic) |
 | PDF extraction | poppler-utils (`pdftotext`) |
-| Quality | Pest, Larastan (level 6), Laravel Pint |
+| Quality | Pest, Larastan (level 6), Laravel Pint, an eval suite for answer quality |
 
 ## Getting started
 
@@ -46,6 +46,33 @@ PDF, Markdown and plain text files and public web pages are supported. Each sour
 3. `EmbedChunks` embeds the chunks in batches and publishes them.
 
 Ingesting the same content again does nothing. A changed document replaces its chunks in one transaction, so a failed re-index leaves the previous version searchable.
+
+## Answering questions
+
+```bash
+curl -N -X POST http://localhost:8000/api/v1/bots/{public_key}/messages \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"question": "How much is the pet fee at Harbor View?"}'
+```
+
+The answer streams as server-sent events: `started` (with the `conversation_id` to send on follow-ups), `delta` (text), and `completed` (with the cited sources). Each question goes through these steps:
+
+1. A follow-up is rewritten into a standalone search query, using the last 6 messages.
+2. Chunks are ranked by cosine similarity and by full-text search, and the two rankings are merged with Reciprocal Rank Fusion. The top 6 are kept.
+3. If nothing is similar enough, the bot refuses without calling the chat model.
+4. The answer is generated from the retrieved chunks, with inline citations such as `[1]`.
+5. An answer without a valid citation is recorded as unanswered.
+6. The message is stored with its tokens, cost and latency.
+
+The system prompts live in `resources/prompts`, and the model prices in `config/docschat.php`.
+
+## Quality evals
+
+```bash
+docker compose exec app php artisan docschat:eval
+```
+
+Runs the questions in `tests/evals/questions.yaml` through the real pipeline, prints source hit rate, correct and false refusals, cost and latency, and saves a report to `storage/evals`. With a real provider this spends a few cents.
 
 ## Services
 

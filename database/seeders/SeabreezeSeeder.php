@@ -14,7 +14,7 @@ use Illuminate\Database\Seeder;
  */
 class SeabreezeSeeder extends Seeder
 {
-    private const array DOCUMENTS = [
+    public const array DOCUMENTS = [
         'faq.md' => 'Frequently Asked Questions',
         'cancellation-policy.pdf' => 'Cancellation Policy',
         'pets-policy.md' => 'Pets Policy',
