@@ -8,7 +8,9 @@ use App\Models\Chunk;
 use App\Models\Conversation;
 use App\Models\Document;
 use App\Models\Message;
+use App\Services\Answer\AnswerSlots;
 use App\Services\Answer\ConversationTokens;
+use App\Services\Answer\VisitorHasher;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -232,3 +234,44 @@ it('accepts a question at the maximum length', function (): void {
 it('returns 404 for an unknown bot key', function (): void {
     postJson(route('api.v1.messages.store', 'pk_unknown'), ['question' => 'Hello'])->assertNotFound();
 });
+
+it('limits a whole IPv4 /24, so moving to the next address does not help', function (): void {
+    config()->set('docschat.rate_limits.subnet_per_hour', 1);
+    $bot = chattingBot('Yes [1].', 'Yes [1].');
+
+    withServerVariables(['REMOTE_ADDR' => '203.0.113.7']);
+    postMessage($bot, ['question' => 'First?'])->assertOk();
+
+    withServerVariables(['REMOTE_ADDR' => '203.0.113.8']);
+    postMessage($bot, ['question' => 'Second?'])->assertTooManyRequests();
+
+    withServerVariables(['REMOTE_ADDR' => '198.51.100.7']);
+    postMessage($bot, ['question' => 'Elsewhere?'])->assertOk();
+});
+
+it('refuses another answer while a network already has all its answers running', function (): void {
+    config()->set('docschat.answers.max_concurrent_per_network', 1);
+    $bot = chattingBot('Yes [1].');
+    $slot = app(AnswerSlots::class)->acquire(app(VisitorHasher::class)->hashNetwork('127.0.0.1'));
+
+    postMessage($bot, ['question' => 'Are dogs allowed?'])
+        ->assertTooManyRequests()
+        ->assertHeader('Retry-After', '5')
+        ->assertJsonPath('message', 'The assistant is busy right now. Please try again in a moment.');
+
+    $slot?->release();
+
+    postMessage($bot, ['question' => 'Are dogs allowed?'])->assertOk();
+});
+
+it('gives the slot back after every kind of response', function (array $payload): void {
+    config()->set('docschat.answers.max_concurrent_per_network', 1);
+    $bot = chattingBot('Yes [1].', 'Yes [1].');
+
+    postMessage($bot, $payload);
+
+    expect(app(AnswerSlots::class)->acquire(app(VisitorHasher::class)->hashNetwork('127.0.0.1')))->not->toBeNull();
+})->with([
+    'an answer' => [['question' => 'Are dogs allowed?']],
+    'a failed validation' => [['question' => '']],
+]);

@@ -36,3 +36,12 @@ it('cannot be reversed without the key', function (): void {
 it('accepts a missing address', function (): void {
     expect(hasher()->hashNetwork(null))->toBe(hasher()->hashNetwork(''));
 });
+
+it('groups the neighbours of an IPv4 address into one subnet', function (): void {
+    expect(hasher()->hashSubnet('203.0.113.7'))->toBe(hasher()->hashSubnet('203.0.113.200'))
+        ->and(hasher()->hashSubnet('203.0.113.7'))->not->toBe(hasher()->hashSubnet('203.0.114.7'));
+});
+
+it('keeps a subnet apart from a network of the same address', function (): void {
+    expect(hasher()->hashSubnet('203.0.113.0'))->not->toBe(hasher()->hashNetwork('203.0.113.0'));
+});

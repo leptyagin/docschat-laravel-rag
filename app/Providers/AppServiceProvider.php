@@ -133,6 +133,7 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('chat', function (Request $request): array {
             $key = $this->networkKey($request);
+            $subnetKey = $this->app->make(VisitorHasher::class)->hashSubnet($request->ip());
 
             /** @param array<string, int|string> $headers */
             $tooManyRequests = fn (Request $request, array $headers): JsonResponse => new JsonResponse([
@@ -142,6 +143,8 @@ class AppServiceProvider extends ServiceProvider
             return [
                 Limit::perHour(config()->integer('docschat.rate_limits.per_hour'))->by("hour:{$key}")->response($tooManyRequests),
                 Limit::perDay(config()->integer('docschat.rate_limits.per_day'))->by("day:{$key}")->response($tooManyRequests),
+                Limit::perHour(config()->integer('docschat.rate_limits.subnet_per_hour'))->by("subnet-hour:{$subnetKey}")->response($tooManyRequests),
+                Limit::perDay(config()->integer('docschat.rate_limits.subnet_per_day'))->by("subnet-day:{$subnetKey}")->response($tooManyRequests),
             ];
         });
 

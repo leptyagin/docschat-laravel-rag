@@ -19,6 +19,11 @@ final readonly class VisitorHasher
      */
     private const int IPV6_MASKED_BYTES = 10;
 
+    /**
+     * Keeps the first 24 bits: one rented server block usually sits in one /24.
+     */
+    private const int IPV4_SUBNET_MASKED_BYTES = 1;
+
     public function __construct(
         #[Config('app.key')] private string $key,
     ) {}
@@ -34,12 +39,24 @@ final readonly class VisitorHasher
      */
     public function hashNetwork(?string $ipAddress): string
     {
-        $address = (string) $ipAddress;
+        return $this->hashMasked('network', (string) $ipAddress, 0);
+    }
 
-        $network = filter_var($address, FILTER_VALIDATE_IP) === false
+    /**
+     * Identifies the wider block around an address, for a limit that a client
+     * cannot avoid by moving to a neighbouring IPv4 address.
+     */
+    public function hashSubnet(?string $ipAddress): string
+    {
+        return $this->hashMasked('subnet', (string) $ipAddress, self::IPV4_SUBNET_MASKED_BYTES);
+    }
+
+    private function hashMasked(string $purpose, string $address, int $ipv4MaskedBytes): string
+    {
+        $masked = filter_var($address, FILTER_VALIDATE_IP) === false
             ? $address
-            : IpUtils::anonymize($address, 0, self::IPV6_MASKED_BYTES);
+            : IpUtils::anonymize($address, $ipv4MaskedBytes, self::IPV6_MASKED_BYTES);
 
-        return hash_hmac('sha256', "network|{$network}", $this->key);
+        return hash_hmac('sha256', "{$purpose}|{$masked}", $this->key);
     }
 }
