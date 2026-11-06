@@ -279,20 +279,6 @@ describe('daily budget', function (): void {
 
         expect($chat->requests)->not->toBe([]);
     });
-
-    it('still reaches the cap when the configured model has no price', function (): void {
-        config()->set('docschat.prices', []);
-        config()->set('docschat.daily_budget_usd', 0.000001);
-        $chat = fakeChat('Yes [1].', 'Yes again [1].');
-        $conversation = conversationFor(botWithMatchingChunk());
-
-        ask($conversation);
-        cache()->flush();
-        [, $second] = ask($conversation);
-
-        expect($chat->requests)->toHaveCount(1)
-            ->and($second->refusal_reason)->toBe(RefusalReason::BudgetExceeded);
-    });
 });
 
 describe('citations', function (): void {

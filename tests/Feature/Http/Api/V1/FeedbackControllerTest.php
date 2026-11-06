@@ -28,6 +28,19 @@ function rate(Message $message, string $feedback, ?string $token): TestResponse
     );
 }
 
+it('limits how fast a visitor can rate with 429', function (): void {
+    config()->set('docschat.rate_limits.feedback_per_minute', 1);
+    $conversation = Conversation::factory()->create();
+    $message = answerIn($conversation);
+    $token = app(ConversationTokens::class)->issue($conversation);
+
+    rate($message, 'up', $token)->assertNoContent();
+
+    rate($message, 'down', $token)->assertTooManyRequests();
+
+    expect($message->refresh()->feedback)->toBe(MessageFeedback::Up);
+});
+
 it('records a rating from the visitor who holds the conversation', function (string $feedback, MessageFeedback $stored): void {
     $conversation = Conversation::factory()->create();
     $message = answerIn($conversation);

@@ -123,6 +123,7 @@ return [
     'demo' => [
         'bot_slug' => 'seabreeze',
         'bot_key' => env('DEMO_BOT_KEY', 'pk_seabreeze_demo'),
+        'visitor_notice' => "Questions asked here appear in the public read-only admin panel, so please don't share personal details.",
 
         'links' => [
             'repository_url' => env('DEMO_REPOSITORY_URL'),
@@ -146,6 +147,9 @@ return [
     'rate_limits' => [
         'per_hour' => 20,
         'per_day' => 60,
+        'feedback_per_minute' => 30,
+        'documents_per_minute' => 60,
+        'login_per_minute' => 5,
     ],
 
     /*
@@ -159,10 +163,9 @@ return [
     | Model Prices
     |--------------------------------------------------------------------------
     |
-    | US dollars per one million tokens, as strings to stay exact. A model that
-    | is missing here is logged and charged at the deliberately high unlisted
-    | price, so that a mistyped model name trips the daily budget early instead
-    | of spending without limit.
+    | US dollars per one million tokens, as strings to stay exact. The daily
+    | budget depends on this list, so the application refuses to boot when a
+    | configured model is missing from it.
     |
     */
 
@@ -173,7 +176,5 @@ return [
         'fake-chat' => ['input' => '0', 'output' => '0'],
         'fake-embedding' => ['input' => '0', 'output' => '0'],
     ],
-
-    'unlisted_model_price' => ['input' => '5.00', 'output' => '25.00'],
 
 ];

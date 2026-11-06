@@ -14,7 +14,7 @@ use App\Auth\ConfiguredUserProvider;
 use App\Models\Conversation;
 use App\Models\Document;
 use App\Services\Admin\ManagedBot;
-use App\Services\Answer\VisitorNetwork;
+use App\Services\Answer\VisitorHasher;
 use App\Services\Ingestion\Web\DnsHostResolver;
 use App\Services\Ingestion\Web\HostResolver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -46,6 +46,8 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->scoped(ChatModel::class, $chatModel);
         $this->app->scoped(EmbeddingModel::class, $embeddingModel);
+
+        $this->ensureModelsArePriced();
     }
 
     /**
@@ -74,6 +76,28 @@ class AppServiceProvider extends ServiceProvider
             $driver === 'fake' && ! $this->app->isProduction() => [FakeChatModel::class, FakeEmbeddingModel::class],
             default => throw new InvalidArgumentException("The AI driver [{$driver}] cannot be used here."),
         };
+    }
+
+    /**
+     * The daily budget adds up what the models cost, so a model without a price
+     * could spend without limit. Like an unknown driver, that must stop the boot.
+     */
+    private function ensureModelsArePriced(): void
+    {
+        $config = $this->app->make('config');
+
+        if ($config->get('docschat.ai.driver') !== 'laravel-ai') {
+            return;
+        }
+
+        $unpricedModels = array_diff(
+            [$config->get('docschat.ai.chat.model'), $config->get('docschat.ai.chat.rewrite_model'), $config->get('docschat.ai.embeddings.model')],
+            array_keys($config->get('docschat.prices')),
+        );
+
+        if ($unpricedModels !== []) {
+            throw new InvalidArgumentException('Add a price to docschat.prices for: '.implode(', ', array_unique($unpricedModels)));
+        }
     }
 
     private function configureTrustedProxies(): void
@@ -105,17 +129,19 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
-        RateLimiter::for('feedback', fn (Request $request): Limit => Limit::perMinute(30)->by($this->networkKey($request)));
-        RateLimiter::for('documents', fn (Request $request): Limit => Limit::perMinute(60)->by($this->networkKey($request)));
-        RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)->by($this->networkKey($request)));
+        RateLimiter::for('feedback', fn (Request $request): Limit => $this->perMinuteLimit('feedback', $request));
+        RateLimiter::for('documents', fn (Request $request): Limit => $this->perMinuteLimit('documents', $request));
+        RateLimiter::for('login', fn (Request $request): Limit => $this->perMinuteLimit('login', $request));
     }
 
-    /**
-     * Hashed so that no address of a visitor ends up in the cache.
-     */
+    private function perMinuteLimit(string $name, Request $request): Limit
+    {
+        return Limit::perMinute(config()->integer("docschat.rate_limits.{$name}_per_minute"))->by($this->networkKey($request));
+    }
+
     private function networkKey(Request $request): string
     {
-        return hash('sha256', $this->app->make(VisitorNetwork::class)->of((string) $request->ip()));
+        return $this->app->make(VisitorHasher::class)->hashNetwork($request->ip());
     }
 
     private function configureAuthentication(): void

@@ -11,6 +11,7 @@ use function Pest\Laravel\assertAuthenticated;
 use function Pest\Laravel\assertGuest;
 use function Pest\Laravel\get;
 use function Pest\Laravel\post;
+use function Pest\Laravel\withServerVariables;
 
 beforeEach(function (): void {
     config()->set('docschat.admin.accounts', [
@@ -58,6 +59,16 @@ it('limits login attempts', function (): void {
     post(route('admin.login'), ['email' => 'owner@example.com', 'password' => 'correct-horse'])->assertTooManyRequests();
 
     assertGuest();
+});
+
+it('counts login attempts for a whole IPv6 network', function (): void {
+    config()->set('docschat.rate_limits.login_per_minute', 1);
+
+    withServerVariables(['REMOTE_ADDR' => '2001:db8:1:2::1']);
+    post(route('admin.login'), ['email' => 'owner@example.com', 'password' => 'wrong']);
+
+    withServerVariables(['REMOTE_ADDR' => '2001:db8:1:ff00::2']);
+    post(route('admin.login'), ['email' => 'owner@example.com', 'password' => 'wrong'])->assertTooManyRequests();
 });
 
 it('shows the demo credentials on the login page, and never the real ones', function (): void {

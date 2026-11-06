@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
 
+use function Pest\Laravel\freezeTime;
 use function Pest\Laravel\postJson;
 use function Pest\Laravel\withHeader;
 use function Pest\Laravel\withServerVariables;
@@ -157,6 +158,7 @@ it('limits a visitor to the configured messages per hour with a friendly 429', f
 });
 
 it('tells a limited client when to come back', function (): void {
+    freezeTime();
     config()->set('docschat.rate_limits.per_hour', 1);
     $bot = chattingBot();
 
@@ -185,7 +187,7 @@ it('counts one limit for a whole IPv6 network', function (): void {
     withServerVariables(['REMOTE_ADDR' => '2001:db8:1:2::1']);
     postMessage($bot, ['question' => 'One'])->assertOk()->streamedContent();
 
-    withServerVariables(['REMOTE_ADDR' => '2001:db8:1:2::2']);
+    withServerVariables(['REMOTE_ADDR' => '2001:db8:1:ff00::2']);
     postMessage($bot, ['question' => 'Two'])->assertTooManyRequests();
 });
 

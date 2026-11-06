@@ -10,7 +10,7 @@ function calculator(): CostCalculator
     return new CostCalculator([
         'chat-model' => ['input' => '0.10', 'output' => '0.50'],
         'embedding-model' => ['input' => '0.02', 'output' => '0'],
-    ], ['input' => '5.00', 'output' => '25.00']);
+    ]);
 }
 
 it('prices input and output tokens per million', function (): void {
