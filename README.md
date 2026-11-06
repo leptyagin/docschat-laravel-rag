@@ -109,7 +109,7 @@ Latest run on the demo documents:
 | Source hit rate | 28/28 |
 | Answers with the expected facts | 21/21 |
 | False refusals | 0/28 |
-| Correct refusals | 6/8 |
+| Correct refusals | 8/8 |
 | Errors | 0 |
 | Average cost per question | $0.0033 |
 | Average latency | about 1 s |
