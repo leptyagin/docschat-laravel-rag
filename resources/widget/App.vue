@@ -253,7 +253,7 @@ onBeforeUnmount(() => {
 
                 <div v-else class="chat__answer">
                     <div class="chat__bubble" :class="{ 'chat__bubble--failed': message.isFailed, 'chat__bubble--streaming': message.isStreaming }">
-                        <AnswerBody v-if="message.text" :text="message.text" :sources="message.sources ?? []" :source-link="sourceLink" />
+                        <AnswerBody v-if="message.text" :text="message.text" :sources="message.sources ?? []" :source-link="sourceLink" :contact="config.contact" />
                         <span v-else class="chat__searching" role="status">
                             <span class="chat__scanner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
                             Searching the documents

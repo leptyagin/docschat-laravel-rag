@@ -19,7 +19,7 @@ final readonly class ChatConfigFactory
     ) {}
 
     /**
-     * @return array{botName: string, greeting: string, color: string, suggestedQuestions: list<string>, maxQuestionLength: int, messagesUrl: string, feedbackUrl: string, storageKey: string, notice: string|null}
+     * @return array{botName: string, greeting: string, color: string, suggestedQuestions: list<string>, maxQuestionLength: int, messagesUrl: string, feedbackUrl: string, storageKey: string, notice: string|null, contact: string}
      */
     public function for(Bot $bot, ?string $greeting = null, ?string $color = null): array
     {
@@ -33,6 +33,7 @@ final readonly class ChatConfigFactory
             'feedbackUrl' => route('api.v1.feedback.store', [$bot->public_key, '__MESSAGE__']),
             'storageKey' => "docschat:{$bot->public_key}",
             'notice' => $bot->slug === $this->demoBotSlug ? $this->demoVisitorNotice : null,
+            'contact' => $bot->fallback_contact,
         ];
     }
 }
