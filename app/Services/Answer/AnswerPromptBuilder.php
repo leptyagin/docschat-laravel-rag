@@ -8,9 +8,12 @@ use App\Ai\Data\ChatRequest;
 use App\Data\Answer\RetrievedChunk;
 use App\Models\Bot;
 use Illuminate\Container\Attributes\Config;
+use Illuminate\Support\Str;
 
 final readonly class AnswerPromptBuilder
 {
+    private const int BOUNDARY_LENGTH = 16;
+
     public function __construct(
         private PromptLibrary $prompts,
         #[Config('docschat.answers.max_answer_tokens')] private int $maxTokens,
@@ -21,37 +24,46 @@ final readonly class AnswerPromptBuilder
      * Earlier answers are left out, so the model cannot cite its own past text
      * instead of the documents, and each answer costs the same to generate.
      *
+     * Every block is closed by a tag with a random suffix, made for this request.
+     * Neither a document nor a visitor can guess it, so nothing they write can
+     * close a block and pose as part of the prompt.
+     *
      * @param  list<RetrievedChunk>  $chunks
      */
-    public function build(Bot $bot, string $question, string $searchQuery, array $chunks): ChatRequest
+    public function build(Bot $bot, string $question, string $searchQuery, array $chunks, ?string $endUser = null): ChatRequest
     {
+        $boundary = Str::random(self::BOUNDARY_LENGTH);
+
         return new ChatRequest(
             systemPrompt: $this->prompts->render('answer', [
                 'bot_name' => $bot->name,
                 'fallback_contact' => $bot->fallback_contact,
+                'boundary' => $boundary,
             ]),
-            prompt: $this->userPrompt($question, $searchQuery, $chunks),
+            prompt: $this->userPrompt($question, $searchQuery, $chunks, $boundary),
             maxTokens: $this->maxTokens,
+            endUser: $endUser,
         );
     }
 
     /**
      * @param  list<RetrievedChunk>  $chunks
      */
-    private function userPrompt(string $question, string $searchQuery, array $chunks): string
+    private function userPrompt(string $question, string $searchQuery, array $chunks, string $boundary): string
     {
         $items = [];
 
         foreach ($chunks as $index => $retrieved) {
-            $items[] = $this->contextItem($index + 1, $retrieved);
+            $items[] = $this->contextItem($index + 1, $retrieved, $boundary);
         }
 
-        $prompt = "<context>\n".implode("\n", $items)."\n</context>\n\nQuestion: ".$this->neutralize($question);
+        $questionBlock = $searchQuery === $question ? $question : "{$question}\nThe question in full: {$searchQuery}";
 
-        return $searchQuery === $question ? $prompt : $prompt."\nThe question in full: ".$this->neutralize($searchQuery);
+        return "<context-{$boundary}>\n".implode("\n", $items)."\n</context-{$boundary}>\n\n"
+            ."<question-{$boundary}>\n{$questionBlock}\n</question-{$boundary}>";
     }
 
-    private function contextItem(int $number, RetrievedChunk $retrieved): string
+    private function contextItem(int $number, RetrievedChunk $retrieved, string $boundary): string
     {
         $chunk = $retrieved->chunk;
 
@@ -62,15 +74,6 @@ final readonly class AnswerPromptBuilder
             e((string) $chunk->heading),
         );
 
-        return "<item {$attributes}>\n{$this->neutralize($chunk->content)}\n</item>";
-    }
-
-    /**
-     * Neither a document nor a visitor may close a context item and pose as part
-     * of the prompt, so anything resembling these tags is defused.
-     */
-    private function neutralize(string $text): string
-    {
-        return (string) preg_replace('/<(\/?)(context|item)\b/i', '< $1$2', $text);
+        return "<item-{$boundary} {$attributes}>\n{$chunk->content}\n</item-{$boundary}>";
     }
 }

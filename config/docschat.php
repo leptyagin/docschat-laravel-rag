@@ -60,6 +60,12 @@ return [
         'max_pdf_pages' => 1000,
         'pdf_timeout' => 60,
 
+        /*
+        | The layout of a PDF is read into memory, so a small file that expands
+        | into a huge text layer has to stop here, before the worker runs out.
+        */
+        'max_pdf_layout_bytes' => 64 * 1024 * 1024,
+
         'http' => [
             'user_agent' => 'DocsChatBot/1.0',
             'connect_timeout' => 5,
@@ -100,7 +106,44 @@ return [
         'max_question_length' => 500,
         'max_answer_tokens' => (int) env('DOCSCHAT_MAX_ANSWER_TOKENS', 400),
         'history_messages' => 6,
+
+        /*
+        | Each answer holds a web server thread until it ends, so these leave
+        | threads free for pages. A slot outlives the slowest possible answer
+        | and expires by itself if a process dies without releasing it.
+        */
+        'max_concurrent' => 6,
+        'max_concurrent_per_network' => 2,
+        'slot_seconds' => 180,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Moderation
+    |--------------------------------------------------------------------------
+    |
+    | Questions go through the provider's moderation endpoint first, which is
+    | free. If it cannot be reached, the question is let through.
+    |
+    */
+
+    'moderation' => [
+        'enabled' => (bool) env('DOCSCHAT_MODERATION_ENABLED', true),
+        'model' => 'omni-moderation-latest',
+        'timeout' => 3,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Retention
+    |--------------------------------------------------------------------------
+    |
+    | Conversations hold what visitors typed, so they are deleted this many
+    | days after their last message.
+    |
+    */
+
+    'conversation_retention_days' => (int) env('DOCSCHAT_CONVERSATION_RETENTION_DAYS', 30),
 
     /*
     |--------------------------------------------------------------------------
@@ -140,16 +183,24 @@ return [
     | The public demo runs on the owner's API key. Above the daily budget the bot
     | stops calling models and says so. Per-visitor limits are in messages.
     |
+    | The budget is released through the day, this many times faster than an even
+    | spread, so a burst of abuse pauses the bot for a while, not until midnight.
+    |
     */
 
     'daily_budget_usd' => (float) env('DAILY_BUDGET_USD', 2.0),
+    'daily_budget_pace' => 4,
 
     'rate_limits' => [
         'per_hour' => 20,
         'per_day' => 60,
+        'subnet_per_hour' => 60,
+        'subnet_per_day' => 200,
         'feedback_per_minute' => 30,
         'documents_per_minute' => 60,
+        'pages_per_minute' => 120,
         'login_per_minute' => 5,
+        'login_account_per_hour' => 30,
     ],
 
     /*

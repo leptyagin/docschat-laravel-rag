@@ -10,6 +10,7 @@ enum RefusalReason: string
     case NoCitation = 'no_citation';
     case ModelError = 'model_error';
     case BudgetExceeded = 'budget_exceeded';
+    case Flagged = 'flagged';
 
     /**
      * Whether the documents could not answer, as opposed to the service being down.

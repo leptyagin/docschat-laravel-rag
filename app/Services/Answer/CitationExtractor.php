@@ -20,17 +20,40 @@ final class CitationExtractor
      */
     public function extract(string $answer, array $chunks, Bot $bot): array
     {
-        preg_match_all('/\[(\d+(?:\s*,\s*\d+)*)]/', $answer, $matches);
-
-        $numbers = array_map(intval(...), preg_split('/\s*,\s*/', implode(',', $matches[1]), flags: PREG_SPLIT_NO_EMPTY) ?: []);
         $sources = [];
 
-        foreach (array_unique($numbers) as $number) {
+        foreach ($this->citedNumbers($answer) as $number) {
             if (isset($chunks[$number - 1])) {
                 $sources[] = Source::fromChunk($number, $chunks[$number - 1]->chunk, $bot);
             }
         }
 
         return $sources;
+    }
+
+    /**
+     * Whether a text, which may still be incomplete, cites an existing context item.
+     */
+    public function citesContext(string $answer, int $contextItems): bool
+    {
+        foreach ($this->citedNumbers($answer) as $number) {
+            if ($number >= 1 && $number <= $contextItems) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function citedNumbers(string $answer): array
+    {
+        preg_match_all('/\[(\d+(?:\s*,\s*\d+)*)]/', $answer, $matches);
+
+        $numbers = array_map(intval(...), preg_split('/\s*,\s*/', implode(',', $matches[1]), flags: PREG_SPLIT_NO_EMPTY) ?: []);
+
+        return array_values(array_unique($numbers));
     }
 }

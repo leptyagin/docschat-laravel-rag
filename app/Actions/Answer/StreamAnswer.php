@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace App\Actions\Answer;
 
 use App\Ai\Contracts\ChatModel;
+use App\Ai\Contracts\ModerationModel;
 use App\Ai\Data\ChatRequest;
 use App\Data\Answer\AnswerDraft;
 use App\Data\Answer\AnswerEvent;
 use App\Data\Answer\ModelUsage;
 use App\Data\Answer\RetrievalResult;
+use App\Data\Answer\RetrievedChunk;
 use App\Data\Answer\Source;
 use App\Enums\MessageRole;
 use App\Enums\RefusalReason;
-use App\Models\Bot;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\Answer\AnswerPromptBuilder;
@@ -35,12 +36,13 @@ final readonly class StreamAnswer
 
     private const string UNAVAILABLE = "Sorry, I can't answer right now. Please try again in a moment, or contact %s.";
 
-    private const string RESTING = 'The demo is resting for today and will be back tomorrow. In the meantime, please contact %s.';
+    private const string RESTING = 'The demo is resting for now and will be back soon. In the meantime, please contact %s.';
 
     public function __construct(
         private QueryRewriter $rewriter,
         private HybridRetriever $retriever,
         private ChatModel $chat,
+        private ModerationModel $moderation,
         private AnswerPromptBuilder $prompts,
         private CitationExtractor $citations,
         private CostCalculator $costs,
@@ -55,6 +57,9 @@ final readonly class StreamAnswer
      * Runs one question through the pipeline, yielding events as the answer
      * forms. The generator returns the stored assistant message.
      *
+     * The share of the budget is held until the cost is stored, so that answers
+     * running at the same moment cannot all pass the check and overspend together.
+     *
      * @return Generator<int, AnswerEvent, mixed, Message>
      */
     public function handle(Conversation $conversation, string $question): Generator
@@ -66,20 +71,30 @@ final readonly class StreamAnswer
 
         yield AnswerEvent::started($this->tokens->issue($conversation));
 
+        $reservation = $this->budget->tryReserve();
+
         try {
-            yield from $this->compose($draft, $conversation->bot, $userMessage, $history);
-        } catch (Throwable $exception) {
-            report($exception);
+            try {
+                yield from $reservation === null
+                    ? $this->refuse($draft, RefusalReason::BudgetExceeded, sprintf(self::RESTING, $conversation->bot->fallback_contact))
+                    : $this->compose($draft, $conversation, $userMessage, $history);
+            } catch (Throwable $exception) {
+                report($exception);
 
-            $apology = sprintf(self::UNAVAILABLE, $conversation->bot->fallback_contact);
+                $apology = sprintf(self::UNAVAILABLE, $conversation->bot->fallback_contact);
 
-            $draft->refusalReason = RefusalReason::ModelError;
-            $draft->text = trim($draft->text."\n\n".$apology);
+                $draft->refusalReason = RefusalReason::ModelError;
+                $draft->text = trim($draft->text."\n\n".$apology);
 
-            yield AnswerEvent::delta($apology);
+                yield AnswerEvent::delta($apology);
+            }
+
+            $message = $this->store($conversation, $draft, $startedAt);
+        } finally {
+            if ($reservation !== null) {
+                $this->budget->release($reservation);
+            }
         }
-
-        $message = $this->store($conversation, $draft, $startedAt);
 
         yield AnswerEvent::completed($message, $draft->sources);
 
@@ -90,19 +105,18 @@ final readonly class StreamAnswer
      * @param  list<Message>  $history
      * @return Generator<int, AnswerEvent, mixed, void>
      */
-    private function compose(AnswerDraft $draft, Bot $bot, Message $userMessage, array $history): Generator
+    private function compose(AnswerDraft $draft, Conversation $conversation, Message $userMessage, array $history): Generator
     {
-        if ($this->budget->isExhausted()) {
-            $draft->refusalReason = RefusalReason::BudgetExceeded;
-            $draft->text = sprintf(self::RESTING, $bot->fallback_contact);
+        $bot = $conversation->bot;
+        $question = $userMessage->content;
 
-            yield AnswerEvent::delta($draft->text);
+        if ($this->moderation->isFlagged($question)) {
+            yield from $this->refuse($draft, RefusalReason::Flagged, sprintf(self::NOT_IN_DOCUMENTS, $bot->fallback_contact));
 
             return;
         }
 
-        $question = $userMessage->content;
-        $rewritten = $this->rewriter->rewrite($question, $history);
+        $rewritten = $this->rewriter->rewrite($question, $history, $conversation->visitor_hash);
 
         $userMessage->update(['rewritten_query' => $rewritten->query]);
 
@@ -114,35 +128,60 @@ final readonly class StreamAnswer
         $draft->embeddingUsages[] = $retrieval->usage;
 
         if ($this->isBelowThreshold($retrieval)) {
-            $draft->refusalReason = RefusalReason::LowSimilarity;
-            $draft->text = sprintf(self::NOT_IN_DOCUMENTS, $bot->fallback_contact);
-
-            yield AnswerEvent::delta($draft->text);
+            yield from $this->refuse($draft, RefusalReason::LowSimilarity, sprintf(self::NOT_IN_DOCUMENTS, $bot->fallback_contact));
 
             return;
         }
 
-        yield from $this->generate($draft, $this->prompts->build($bot, $question, $rewritten->query, $retrieval->chunks));
+        $request = $this->prompts->build($bot, $question, $rewritten->query, $retrieval->chunks, $conversation->visitor_hash);
+
+        yield from $this->generate($draft, $request, $retrieval->chunks);
 
         $draft->sources = $this->citations->extract($draft->text, $retrieval->chunks, $bot);
-        $draft->refusalReason = $draft->sources === [] ? RefusalReason::NoCitation : null;
+
+        if ($draft->sources === []) {
+            yield from $this->refuse($draft, RefusalReason::NoCitation, sprintf(self::NOT_IN_DOCUMENTS, $bot->fallback_contact));
+        }
     }
 
     /**
+     * @return Generator<int, AnswerEvent, mixed, void>
+     */
+    private function refuse(AnswerDraft $draft, RefusalReason $reason, string $text): Generator
+    {
+        $draft->refusalReason = $reason;
+        $draft->text = $text;
+
+        yield AnswerEvent::delta($text);
+    }
+
+    /**
+     * Nothing reaches the visitor until the text cites the context. The rules in
+     * the prompt can be talked around, so this is what keeps text that is not
+     * based on the documents, such as the result of a jailbreak, from being shown.
+     *
      * The provider bills a failed stream too, but only a finished one reports
      * its usage, so the spend of a failure is estimated to keep the budget honest.
      *
+     * @param  list<RetrievedChunk>  $chunks
      * @return Generator<int, AnswerEvent, mixed, void>
      */
-    private function generate(AnswerDraft $draft, ChatRequest $request): Generator
+    private function generate(AnswerDraft $draft, ChatRequest $request, array $chunks): Generator
     {
         $stream = $this->chat->stream($request);
+        $isGrounded = false;
 
         try {
             foreach ($stream as $delta) {
                 $draft->text .= $delta;
 
-                yield AnswerEvent::delta($delta);
+                if ($isGrounded) {
+                    yield AnswerEvent::delta($delta);
+                } elseif ($this->citations->citesContext($draft->text, count($chunks))) {
+                    $isGrounded = true;
+
+                    yield AnswerEvent::delta($draft->text);
+                }
             }
 
             $response = $stream->getReturn();

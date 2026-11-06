@@ -40,6 +40,24 @@ final class ChatCompletionAgent implements Agent, HasProviderOptions
      */
     public function providerOptions(Lab|string $provider): array
     {
-        return $this->providerOptions[$provider instanceof Lab ? $provider->value : $provider] ?? [];
+        $name = $provider instanceof Lab ? $provider->value : $provider;
+
+        return [...$this->providerOptions[$name] ?? [], ...$this->endUserOption($name)];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function endUserOption(string $provider): array
+    {
+        if ($this->request->endUser === null) {
+            return [];
+        }
+
+        return match ($provider) {
+            Lab::OpenAI->value => ['safety_identifier' => $this->request->endUser],
+            Lab::Anthropic->value => ['metadata' => ['user_id' => $this->request->endUser]],
+            default => [],
+        };
     }
 }

@@ -6,10 +6,13 @@ namespace App\Providers;
 
 use App\Ai\Contracts\ChatModel;
 use App\Ai\Contracts\EmbeddingModel;
+use App\Ai\Contracts\ModerationModel;
 use App\Ai\Fakes\FakeChatModel;
 use App\Ai\Fakes\FakeEmbeddingModel;
+use App\Ai\Fakes\FakeModerationModel;
 use App\Ai\LaravelAiChatModel;
 use App\Ai\LaravelAiEmbeddingModel;
+use App\Ai\OpenAiModerationModel;
 use App\Auth\ConfiguredUserProvider;
 use App\Models\Conversation;
 use App\Models\Document;
@@ -46,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->scoped(ChatModel::class, $chatModel);
         $this->app->scoped(EmbeddingModel::class, $embeddingModel);
+        $this->app->scoped(ModerationModel::class, $this->moderationImplementation());
 
         $this->ensureModelsArePriced();
     }
@@ -76,6 +80,18 @@ class AppServiceProvider extends ServiceProvider
             $driver === 'fake' && ! $this->app->isProduction() => [FakeChatModel::class, FakeEmbeddingModel::class],
             default => throw new InvalidArgumentException("The AI driver [{$driver}] cannot be used here."),
         };
+    }
+
+    /**
+     * @return class-string<ModerationModel>
+     */
+    private function moderationImplementation(): string
+    {
+        $config = $this->app->make('config');
+
+        return $config->get('docschat.ai.driver') === 'laravel-ai' && $config->get('docschat.moderation.enabled')
+            ? OpenAiModerationModel::class
+            : FakeModerationModel::class;
     }
 
     /**

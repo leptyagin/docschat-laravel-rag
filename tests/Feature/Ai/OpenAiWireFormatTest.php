@@ -7,7 +7,10 @@ use App\Ai\Contracts\EmbeddingModel;
 use App\Ai\Data\ChatRequest;
 use App\Ai\LaravelAiChatModel;
 use App\Ai\LaravelAiEmbeddingModel;
+use App\Ai\OpenAiModerationModel;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -129,4 +132,51 @@ it('requests embeddings with the configured model and dimensions', function (): 
     Http::assertSent(fn (Request $request): bool => $request->data()['model'] === 'text-embedding-3-small'
         && $request->data()['dimensions'] === 1536
         && $request->data()['input'] === ['first', 'second']);
+});
+
+it('identifies the visitor to OpenAI', function (): void {
+    useRealModels();
+    Http::fake(['api.openai.com/v1/responses' => Http::response(openAiResponse())]);
+
+    app(ChatModel::class)->generate(new ChatRequest('System rules.', 'Question?', maxTokens: 400, endUser: 'visitor-hash'));
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['safety_identifier'] === 'visitor-hash'
+        && $request->data()['reasoning'] === ['effort' => 'none']);
+});
+
+it('never tells OpenAI anything about the visitor when none is given', function (): void {
+    useRealModels();
+    Http::fake(['api.openai.com/v1/responses' => Http::response(openAiResponse())]);
+
+    app(ChatModel::class)->generate(new ChatRequest('System rules.', 'Question?', maxTokens: 400));
+
+    Http::assertSent(fn (Request $request): bool => ! array_key_exists('safety_identifier', $request->data()));
+});
+
+describe('moderation', function (): void {
+    function realModeration(): OpenAiModerationModel
+    {
+        config()->set('ai.providers.openai.key', 'test-key');
+
+        return app(OpenAiModerationModel::class);
+    }
+
+    it('asks the moderation endpoint with the key and reads its verdict', function (bool $flagged): void {
+        Http::preventStrayRequests();
+        Http::fake(['api.openai.com/v1/moderations' => Http::response(['results' => [['flagged' => $flagged]]])]);
+
+        expect(realModeration()->isFlagged('A question'))->toBe($flagged);
+
+        Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer test-key')
+            && $request->data() === ['model' => 'omni-moderation-latest', 'input' => 'A question']);
+    })->with([true, false]);
+
+    it('lets a question through when the check itself fails', function (): void {
+        Exceptions::fake();
+        Http::fake(['api.openai.com/v1/moderations' => Http::response(status: 500)]);
+
+        expect(realModeration()->isFlagged('A question'))->toBeFalse();
+
+        Exceptions::assertReported(RequestException::class);
+    });
 });
