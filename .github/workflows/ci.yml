@@ -54,6 +54,28 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-app
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
       - name: Install pdftotext
         run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends poppler-utils
       - run: php artisan test --compact
+
+  audit:
+    name: Composer audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-app
+      - run: composer audit
+
+  image:
+    name: Production image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: docker build --target prod --tag docschat-app:ci .
+      - run: docker/smoke-test.sh docschat-app:ci

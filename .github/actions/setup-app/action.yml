@@ -23,8 +23,3 @@ runs:
 
     - shell: bash
       run: composer install --no-interaction --no-progress --prefer-dist
-
-    - shell: bash
-      run: |
-        cp .env.example .env
-        php artisan key:generate --no-interaction
