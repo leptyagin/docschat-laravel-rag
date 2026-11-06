@@ -1,23 +1,59 @@
 # DocsChat
 
-An AI chatbot that answers website visitors' questions only from a company's own documents, cites its sources, and says "I don't know" when the answer isn't there.
+An AI chatbot that answers website visitors only from a company's own documents, cites its sources, and says "I don't know" when the answer isn't there.
 
-## Stack
+> **Screenshot placeholder:** the widget answering with source chips, next to the admin dashboard.
+
+## Live demo
+
+The demo runs on Seabreeze Hotels, a fictional company.
+
+- Chat with the bot: `https://YOUR-DOMAIN`
+- Read-only admin panel: `https://YOUR-DOMAIN/admin` (the login is shown on the page)
+
+## What it does
+
+- Answers from your PDFs, Markdown files and web pages, and never from the model's general knowledge
+- Cites every answer inline, with clickable sources that show the document and page
+- Refuses when nothing relevant is found, without paying for a model call
+- Flags an answer that came back without a valid citation as unanswered
+- Understands follow-up questions and replies in the language of the question
+- Joins any website with one `<script>` tag, isolated from the site's styles
+- Streams answers as they are written
+- Gives the owner an admin panel with documents, conversations and their sources, grouped unanswered questions, and the cost and latency of each answer
+- Protects the public demo with rate limits, a daily spending cap, and input and output limits
+
+## How it works
+
+**Ingestion** runs as three queued jobs with retries. `ExtractText` reads the source, `ChunkText` splits it by headings and then by size while keeping the heading and page number, and `EmbedChunks` stores the vectors. Unchanged content is skipped. A changed document replaces its chunks in one transaction, so a failed re-index leaves the previous version searchable.
+
+**Each question** goes through these steps:
+
+1. A follow-up is rewritten into a standalone search query, using the last 6 messages.
+2. Chunks are ranked by cosine similarity (pgvector, HNSW) and by full-text search, and the two rankings are merged with Reciprocal Rank Fusion. The top 6 are kept.
+3. If the best similarity is below the threshold, the bot refuses without calling the chat model.
+4. The model answers from those chunks only, with inline citations, streamed over server-sent events. Retrieved text is treated as untrusted data.
+5. Citations are checked against the chunks that were actually retrieved.
+6. The message is stored with its tokens, cost and latency.
+
+The system prompts are in [`resources/prompts`](resources/prompts).
+
+## Tech stack
 
 | Layer | Choice |
 | --- | --- |
-| Runtime | PHP 8.5, Laravel 13, FrankenPHP (classic mode) |
-| Database | PostgreSQL 17 + pgvector (`pgvector/pgvector:0.8.7-pg17`) |
-| Queues & cache | Redis 8, Laravel Horizon |
-| LLM | Laravel AI SDK (OpenAI, Anthropic) |
+| Runtime | PHP 8.5, Laravel 13, FrankenPHP |
+| Database | PostgreSQL 17 with pgvector |
+| Queues and cache | Redis 8, Laravel Horizon |
+| LLM access | Laravel AI SDK (OpenAI, Anthropic) behind `ChatModel` and `EmbeddingModel` interfaces |
 | Widget | Vue 3, built into one standalone `widget.js` |
 | Admin panel | Blade and Tailwind CSS |
 | PDF extraction | poppler-utils (`pdftotext`) |
-| Quality | Pest, Larastan (level 6), Laravel Pint, an eval suite for answer quality |
+| Quality | Pest, Larastan (level 6), Laravel Pint, GitHub Actions, an eval suite for answer quality |
 
-## Getting started
+## Run locally with Docker Compose
 
-Requirements: Docker with Compose v2. No PHP or Node is needed on the host.
+You need Docker with Compose v2. PHP and Node are not needed on the host.
 
 ```bash
 cp .env.example .env
@@ -30,102 +66,131 @@ docker compose up -d
 docker compose exec app php artisan migrate --seed
 ```
 
-Seeding creates the demo bot, Seabreeze Hotels (a fictional company), and queues its seven documents for ingestion. Embeddings need `OPENAI_API_KEY`. To run everything locally without a key, set `DOCSCHAT_AI_DRIVER=fake`.
+Seeding creates the demo bot and queues its seven documents. Embeddings need `OPENAI_API_KEY`. To run without a key, set `DOCSCHAT_AI_DRIVER=fake` before seeding: answers are then canned, but the whole pipeline runs.
 
-- Demo page: http://localhost:8000
-- Admin panel: http://localhost:8000/admin
-- Health check: http://localhost:8000/up
-- Horizon: http://localhost:8000/horizon
+| Page | URL |
+| --- | --- |
+| Demo page | http://localhost:8000 |
+| Admin panel | http://localhost:8000/admin |
+| Horizon | http://localhost:8000/horizon |
+| Health check | http://localhost:8000/up |
 
-## Ingesting documents
+To add your own documents:
 
 ```bash
 docker compose exec app php artisan docschat:ingest path/to/guide.pdf --title="Guest Guide"
 docker compose exec app php artisan docschat:ingest https://example.com/faq --bot=seabreeze
 ```
 
-PDF, Markdown and plain text files and public web pages are supported. Each source goes through three queued jobs on the `ingestion` queue:
-
-1. `ExtractText` reads the source into Markdown-flavoured text. PDF headings are recognised from the page layout, and web pages are reduced to their main content after checking `robots.txt`.
-2. `ChunkText` splits the text by headings, then by size (600 tokens, 80 overlap), keeping the heading trail and page number on each chunk.
-3. `EmbedChunks` embeds the chunks in batches and publishes them.
-
-Ingesting the same content again does nothing. A changed document replaces its chunks in one transaction, so a failed re-index leaves the previous version searchable. The text is indexed again when the embedding model changes, or on request from the admin panel.
-
-The seed PDFs in `database/seed-docs` are built from their Markdown sources with `build-pdf.py`.
-
-## Answering questions
+To run the checks that CI runs:
 
 ```bash
-curl -N -X POST http://localhost:8000/api/v1/bots/{public_key}/messages \
-  -H 'Content-Type: application/json' -H 'Accept: application/json' \
-  -d '{"question": "How much is the pet fee at Harbor View?"}'
+docker compose exec app php artisan test --compact
+docker compose exec app vendor/bin/pint --test
+docker compose exec app vendor/bin/phpstan analyse --memory-limit=1G
 ```
 
-The answer streams as server-sent events: `started` (with the `conversation_id` to send on follow-ups), `delta` (text), and `completed` (with the cited sources). Each question goes through these steps:
+The tests use fake models and never call a real API.
 
-1. A follow-up is rewritten into a standalone search query, using the last 6 messages.
-2. Chunks are ranked by cosine similarity and by full-text search, and the two rankings are merged with Reciprocal Rank Fusion. The top 6 are kept.
-3. If nothing is similar enough, the bot refuses without calling the chat model.
-4. The answer is generated from the retrieved chunks, with inline citations such as `[1]`.
-5. An answer without a valid citation is recorded as unanswered.
-6. The message is stored with its tokens, cost and latency.
-
-The system prompts live in `resources/prompts`, and the model prices in `config/docschat.php`.
-
-## Embedding the widget
-
-```html
-<script src="https://your-domain/widget.js" data-bot="PUBLIC_KEY" async></script>
-```
-
-Optional attributes: `data-color` (a hex color), `data-position` (`left` or `right`), `data-greeting`, and `data-open="true"` to open the chat on load on wide screens.
-
-The launcher lives in a shadow root and the chat in an iframe, so the styles of the site and the widget cannot affect each other. `public/embed-test.html` is a plain page with deliberately hostile styles that proves this. Serve it from another origin:
-
-```bash
-python3 -m http.server 9000 --directory public
-```
-
-## Admin panel
-
-Logins come from `.env`: `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the owner, and `DEMO_EMAIL` and `DEMO_PASSWORD` for a read-only account whose credentials are shown on the login page. An account without a password cannot log in. The panel covers the dashboard, documents, conversations with their sources, grouped unanswered questions, and bot settings.
-
-## Protecting the demo
-
-Each IP address may send 20 messages per hour and 60 per day. Once `DAILY_BUDGET_USD` has been spent in a day, the bot stops calling models and says so. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit.
-
-## Quality evals
+## Run evals
 
 ```bash
 docker compose exec app php artisan docschat:eval
 ```
 
-Runs the questions in `tests/evals/questions.yaml` through the real pipeline, prints source hit rate, correct and false refusals, cost and latency, and saves a report to `storage/evals`. With a real provider this spends a few cents.
+This sends the 36 questions in [`tests/evals/questions.yaml`](tests/evals/questions.yaml) through the real pipeline, including follow-ups that need history and questions the documents cannot answer. It prints the source hit rate, correct refusals, false refusals, and average cost and latency, and saves a report to `storage/evals`.
 
-## Services
+With a real provider a run spends a few cents. With the fake driver the numbers say nothing about answer quality, and the command warns about that. Use `--bot` and `--questions` to test another bot.
 
-| Service | Purpose |
+> **Results placeholder:** the numbers from the latest run go here.
+
+## Configuration
+
+Secrets and deployment settings live in `.env`. The rest is in [`config/docschat.php`](config/docschat.php), including the model price table.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | | Provider keys. Embeddings always need OpenAI. |
+| `DOCSCHAT_AI_DRIVER` | `laravel-ai` | `fake` runs without a provider and is refused in production |
+| `DOCSCHAT_CHAT_PROVIDER` | `openai` | `openai` or `anthropic` |
+| `DOCSCHAT_CHAT_MODEL`, `DOCSCHAT_REWRITE_MODEL` | `gpt-6-luna` | Models for answers and query rewriting |
+| `DOCSCHAT_EMBEDDING_MODEL` | `text-embedding-3-small` | Changing it re-embeds on the next seed |
+| `DOCSCHAT_RETRIEVAL_MIN_SIMILARITY` | `0.3` | Below this the bot refuses |
+| `DOCSCHAT_MAX_ANSWER_TOKENS` | `400` | Output limit per answer |
+| `DAILY_BUDGET_USD` | `2` | Above this the bot stops calling models for the day |
+| `TRUSTED_PROXIES` | | Comma-separated addresses, or `*`, when behind a proxy |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | | Owner login. Without a password it cannot log in. |
+| `DEMO_EMAIL`, `DEMO_PASSWORD` | `demo@example.com`, `demo` | Read-only login, shown on the login page |
+| `DEMO_BOT_KEY` | `pk_seabreeze_demo` | The bot shown on the demo page |
+| `DEMO_REPOSITORY_URL`, `DEMO_AUTHOR_URL`, `DEMO_AUTHOR_LABEL` | | Links on the demo page. Empty links are hidden. |
+| `DOMAIN` | `localhost` | Public domain in production |
+| `FRANKENPHP_NUM_THREADS` | `16` | Web server threads. Each streamed answer holds one. |
+
+### Demo protection
+
+| Protection | Limit |
 | --- | --- |
-| `app` | FrankenPHP web server |
-| `worker` | Horizon (queues `default` and `ingestion`) |
-| `scheduler` | `schedule:work` |
-| `postgres` | PostgreSQL 17 + pgvector, plus a `docschat_testing` database for tests |
-| `redis` | Queues, cache, sessions |
-| `node` | On-demand tooling: `docker compose run --rm node npm ...` |
+| Messages per visitor | 20 per hour and 60 per day, with a friendly 429 and `Retry-After` |
+| Daily spend | `DAILY_BUDGET_USD` across all bots |
+| Question length | 500 characters |
+| Answer length | 400 tokens |
+| Conversation history | the last 6 messages |
+| API request body | 16 KB, enforced by the web server |
+| Admin panel | the demo account can read everything and change nothing |
 
-## Quality checks
+Limits count per IPv4 address or per IPv6 /64 network, because one IPv6 customer usually holds a whole /64. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit. Only do that when the origin cannot be reached directly, because a trusted proxy header can otherwise be forged.
 
-```bash
-docker compose exec app php artisan test
-docker compose exec app vendor/bin/pint --test
-docker compose exec app vendor/bin/phpstan analyse --memory-limit=1G
+A model that is missing from the price table is charged at a deliberately high price and logged, so a mistyped model name trips the daily cap early instead of spending without limit.
+
+### Embedding the widget
+
+```html
+<script src="https://YOUR-DOMAIN/widget.js" data-bot="PUBLIC_KEY" async></script>
 ```
 
-## Production
+Optional attributes are `data-color` (a hex color), `data-position` (`left` or `right`), `data-greeting`, and `data-open="true"` to open the chat on load on wide screens.
+
+### Production
+
+Set `DOMAIN`, `APP_KEY`, a strong `DB_PASSWORD`, `ADMIN_PASSWORD` and the provider keys in `.env`. Compose stops with an error if `DOMAIN`, `APP_KEY` or `DB_PASSWORD` is empty. Then:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app php artisan db:seed --force
 ```
 
-Set `DOMAIN`, `APP_URL`, `APP_KEY` and strong database credentials in `.env` first. FrankenPHP (Caddy) issues the HTTPS certificate for `DOMAIN` automatically. The database and Redis ports are not exposed, every container has a memory limit and restarts automatically, and migrations run when the app starts.
+FrankenPHP (Caddy) issues the HTTPS certificate for `DOMAIN` automatically, and migrations run when the app starts. The database and Redis ports are not exposed, every container has a memory limit and a restart policy, logs go to Docker with rotation, and session cookies are HTTPS-only.
+
+## Project structure
+
+```text
+app/
+├── Actions/        Single-purpose use cases: Admin, Answer, Ingestion
+├── Ai/             ChatModel and EmbeddingModel interfaces, SDK adapters, fakes
+├── Auth/           Admin accounts defined in the environment
+├── Console/        docschat:ingest and docschat:eval
+├── Data/           Typed value objects
+├── Http/           Thin controllers, form requests, the SSE response
+├── Jobs/           The queued ingestion pipeline
+├── Models/         Bot, Document, Chunk, Conversation, Message
+└── Services/       Retrieval, prompts, costs, budget, extraction, chunking, evals
+config/docschat.php All application settings and the model price table
+database/seed-docs/ The fictional Seabreeze Hotels documents
+docker/             Web server, PHP and entrypoint configuration
+resources/prompts/  System prompts
+resources/views/    Admin panel and demo page
+resources/widget/   The Vue widget and its launcher
+tests/              Pest tests and the eval questions
+```
+
+## Limitations
+
+- **Scanned PDFs are not supported.** There is no OCR, so a PDF needs a text layer.
+- **Web pages are added one at a time.** There is no site crawler.
+- **The admin panel manages one bot.** The data model supports many, but there is no bot switcher, user management or billing.
+- **The similarity threshold needs tuning.** The default suits short policy documents like the demo's. Check it with the evals on any new document set.
+- **Token counts for chunking are estimates.** Costs use the provider's reported usage when it is available, and an estimate otherwise.
+- **The daily cap can overshoot slightly.** The spend total is cached for 30 seconds, and answers in flight are not counted yet. It also covers answers only, not the embedding of new documents.
+- **Rate limits follow the network.** Visitors behind one shared address share a limit, and someone with many addresses can still get around it. There is no CAPTCHA.
+- **Conversations on the public demo are visible** in the read-only admin panel, and the demo page says so.
+- **The interface is in English,** though answers follow the language of the question.
