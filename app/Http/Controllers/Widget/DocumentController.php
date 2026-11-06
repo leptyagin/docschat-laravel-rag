@@ -16,8 +16,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 final class DocumentController extends Controller
 {
     /**
-     * Lets a visitor open the file behind a source. The content type is fixed by
-     * the document type and the sandbox stops any active content in the file.
+     * Lets a visitor open the file behind a source, if the bot publishes it. The
+     * content type is fixed by the document type and the sandbox stops any active
+     * content in the file.
      */
     public function show(
         Bot $bot,
@@ -28,9 +29,9 @@ final class DocumentController extends Controller
         /** @var FilesystemAdapter $storage */
         $storage = $filesystem->disk($disk);
 
-        abort_unless($document->file_path !== null && $storage->exists($document->file_path), 404);
+        abort_unless($bot->publishes($document) && $storage->exists((string) $document->file_path), 404);
 
-        return $storage->response($document->file_path, basename($document->file_path), [
+        return $storage->response((string) $document->file_path, basename((string) $document->file_path), [
             'Content-Type' => $document->source_type === DocumentSourceType::Pdf ? 'application/pdf' : 'text/plain; charset=utf-8',
             'Content-Security-Policy' => 'sandbox',
         ], 'inline');

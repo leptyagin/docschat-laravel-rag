@@ -25,7 +25,7 @@ final class ShowWidgetRequest extends FormRequest
     {
         return [
             'color' => ['nullable', 'string', 'hex_color'],
-            'greeting' => ['nullable', 'string', 'max:300'],
+            'greeting' => ['nullable', 'string', 'encoding:UTF-8', 'max:300'],
         ];
     }
 
@@ -36,5 +36,14 @@ final class ShowWidgetRequest extends FormRequest
     protected function failedValidation(Validator $validator): never
     {
         abort(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * A greeting is for the site that embeds the chat. Honoring it on a page opened
+     * directly would let any link put words in the bot's mouth on this domain.
+     */
+    public function embeddedGreeting(): ?string
+    {
+        return $this->header('Sec-Fetch-Dest') === 'iframe' ? $this->string('greeting')->toString() : null;
     }
 }

@@ -25,6 +25,8 @@ class BotFactory extends Factory
             'fallback_contact' => fake()->safeEmail(),
             'theme' => ['color' => '#0f766e', 'position' => 'right'],
             'suggested_questions' => ['Can I bring my dog?'],
+            'embed_origins' => [],
+            'documents_public' => true,
         ];
     }
 }

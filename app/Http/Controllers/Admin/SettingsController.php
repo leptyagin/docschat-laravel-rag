@@ -27,6 +27,8 @@ final class SettingsController extends Controller
             $request->string('color')->toString(),
             $request->string('fallback_contact')->toString(),
             $request->suggestedQuestions(),
+            $request->embedOrigins(),
+            $request->boolean('documents_public'),
         );
 
         return back()->with('status', 'Settings saved.');

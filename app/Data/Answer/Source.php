@@ -34,14 +34,15 @@ final readonly class Source
         $document = $chunk->document;
         $fileUrl = route('widget.documents.show', [$bot->public_key, $document->id]);
         $readerUrl = route('reader.show', [$bot->public_key, $document->id]).'#'.ReaderPassage::anchorFor($chunk->position);
+        $pageUrl = $chunk->page === null ? $fileUrl : "{$fileUrl}#page={$chunk->page}";
 
         return new self(
             number: $number,
             chunkId: $chunk->id,
             title: $document->title,
             page: $chunk->page,
-            url: $document->source_url ?? ($chunk->page === null ? $fileUrl : "{$fileUrl}#page={$chunk->page}"),
-            readerUrl: $document->source_url === null ? $readerUrl : null,
+            url: $document->source_url ?? ($bot->documents_public ? $pageUrl : null),
+            readerUrl: $document->source_url === null && $bot->documents_public ? $readerUrl : null,
             excerpt: Str::limit($chunk->content, self::EXCERPT_LENGTH),
         );
     }

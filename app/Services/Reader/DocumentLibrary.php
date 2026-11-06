@@ -15,6 +15,10 @@ final class DocumentLibrary
      */
     public function for(Bot $bot): Collection
     {
+        if (! $bot->documents_public) {
+            return new Collection;
+        }
+
         return $bot->documents()
             ->readable()
             ->orderBy('title')

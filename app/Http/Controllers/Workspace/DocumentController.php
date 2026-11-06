@@ -25,7 +25,7 @@ final class DocumentController extends Controller
         DocumentLibrary $library,
         ChatConfigFactory $chatConfig,
     ): View {
-        abort_unless($document->isReadable(), 404);
+        abort_unless($bot->publishes($document), 404);
 
         return view('workspace.document', [
             'bot' => $bot,
