@@ -20,7 +20,8 @@ final class HtmlContentExtractor
     private const array MAIN_CONTENT_SELECTORS = ['main', '[role="main"]'];
 
     private const string NOISE_SELECTOR = 'script, style, noscript, template, svg, iframe, nav, footer, aside, form,'
-        .' [hidden], [aria-hidden="true"], [role="navigation"], [role="contentinfo"], [role="banner"]';
+        .' [hidden], [aria-hidden="true"], [role="navigation"], [role="contentinfo"], [role="banner"],'
+        .' [style*="display:none" i], [style*="display: none" i], [style*="visibility:hidden" i], [style*="visibility: hidden" i]';
 
     private const array HEADINGS = ['h1' => 1, 'h2' => 2, 'h3' => 3, 'h4' => 4, 'h5' => 5, 'h6' => 6];
 

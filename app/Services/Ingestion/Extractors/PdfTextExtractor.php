@@ -38,15 +38,30 @@ final readonly class PdfTextExtractor implements TextExtractor
         #[Config('docschat.ingestion.disk')] private string $disk,
         #[Config('docschat.ingestion.pdf_timeout')] private int $timeout,
         #[Config('docschat.ingestion.max_pdf_pages')] private int $maxPages,
+        #[Config('docschat.ingestion.max_pdf_layout_bytes')] private int $maxLayoutBytes,
     ) {}
 
     public function extract(Document $document): ExtractedDocument
     {
         $path = $this->filesystem->disk($this->disk)->path((string) $document->file_path);
+        $layoutBytes = 0;
+        $isTooLarge = false;
 
         $result = $this->process->newPendingProcess()
             ->timeout($this->timeout)
-            ->run(['pdftotext', '-bbox-layout', '-enc', 'UTF-8', '-q', '-l', (string) ($this->maxPages + 1), $path, '-']);
+            ->run(
+                ['pdftotext', '-bbox-layout', '-enc', 'UTF-8', '-q', '-l', (string) ($this->maxPages + 1), $path, '-'],
+                function (string $type, string $output) use (&$layoutBytes, &$isTooLarge): void {
+                    $layoutBytes += strlen($output);
+
+                    // The process calls this once more while it is destroyed, when nothing could catch a second exception.
+                    if ($layoutBytes > $this->maxLayoutBytes && ! $isTooLarge) {
+                        $isTooLarge = true;
+
+                        throw new UnprocessableSourceException('The PDF has too much text to ingest.');
+                    }
+                },
+            );
 
         if ($result->failed()) {
             throw new UnprocessableSourceException('The PDF could not be read. It may be damaged or password protected.');

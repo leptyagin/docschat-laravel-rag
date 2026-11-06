@@ -557,3 +557,13 @@ describe('PDF files', function (): void {
             ->and($document->error)->toContain('Scanned documents are not supported');
     });
 });
+
+it('stops reading a PDF whose text layer is too large', function (): void {
+    config()->set('docschat.ingestion.max_pdf_layout_bytes', 100);
+    $bot = Bot::factory()->create();
+
+    $document = ingestExpectingFailure($bot, database_path('seed-docs/accessibility.pdf'));
+
+    expect($document->status)->toBe(DocumentStatus::Failed)
+        ->and($document->error)->toContain('too much text');
+});

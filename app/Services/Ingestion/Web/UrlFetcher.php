@@ -82,6 +82,11 @@ final readonly class UrlFetcher
                 ->timeout($this->timeout)
                 ->withoutRedirecting()
                 ->withOptions([
+                    /*
+                    | The size limit counts bytes on the wire, so a compressed
+                    | response could expand far past it once it was decoded.
+                    */
+                    'decode_content' => false,
                     'curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$addresses}"]],
                     'progress' => function (int $expected, int $received) use (&$exceededSizeLimit): bool {
                         return $exceededSizeLimit = $received > $this->maxBytes;
