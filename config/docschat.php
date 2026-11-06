@@ -27,10 +27,13 @@ return [
             /*
             | Answers come from the retrieved context, so reasoning would only
             | add cost and latency, and could use up the answer token limit.
+            | Each OpenAI-compatible server has its own switch for that, so
+            | DOCSCHAT_CHAT_EXTRA_BODY holds it as JSON, merged into every request.
             */
             'provider_options' => [
                 'openai' => ['reasoning' => ['effort' => 'none']],
                 'anthropic' => ['thinking' => ['type' => 'disabled']],
+                'openai-compatible' => json_decode((string) (env('DOCSCHAT_CHAT_EXTRA_BODY') ?: '{}'), true, flags: JSON_THROW_ON_ERROR),
             ],
         ],
 
@@ -216,7 +219,8 @@ return [
     |
     | US dollars per one million tokens, as strings to stay exact. The daily
     | budget depends on this list, so the application refuses to boot when a
-    | configured model is missing from it.
+    | configured model is missing from it. DOCSCHAT_MODEL_PRICES adds to it
+    | as JSON, for models that a deployment chooses.
     |
     */
 
@@ -226,6 +230,7 @@ return [
         'text-embedding-3-small' => ['input' => '0.02', 'output' => '0'],
         'fake-chat' => ['input' => '0', 'output' => '0'],
         'fake-embedding' => ['input' => '0', 'output' => '0'],
+        ...json_decode((string) (env('DOCSCHAT_MODEL_PRICES') ?: '{}'), true, flags: JSON_THROW_ON_ERROR),
     ],
 
 ];

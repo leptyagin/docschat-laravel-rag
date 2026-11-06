@@ -38,6 +38,15 @@ return [
             'url' => env('OPENAI_URL', 'https://api.openai.com/v1'),
             'store' => env('OPENAI_STORE', false),
         ],
+
+        'openai-compatible' => [
+            'driver' => 'openai-compatible',
+            'key' => env('OPENAI_COMPATIBLE_API_KEY'),
+            'url' => env('OPENAI_COMPATIBLE_URL'),
+
+            // Without this a streamed answer reports no token usage, and the budget would have to guess.
+            'stream_options' => ['include_usage' => true],
+        ],
     ],
 
 ];

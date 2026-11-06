@@ -44,7 +44,7 @@ The system prompts are in [`resources/prompts`](resources/prompts).
 | Runtime | PHP 8.5, Laravel 13, FrankenPHP |
 | Database | PostgreSQL 17 with pgvector |
 | Queues and cache | Redis 8, Laravel Horizon |
-| LLM access | Laravel AI SDK (OpenAI, Anthropic) behind `ChatModel` and `EmbeddingModel` interfaces |
+| LLM access | Laravel AI SDK (OpenAI, Anthropic, any OpenAI-compatible server) behind `ChatModel` and `EmbeddingModel` interfaces |
 | Widget | Vue 3, built into one standalone `widget.js` |
 | Workspace | Blade, Vue 3 for the chat, a WebGL background without libraries |
 | Admin panel | Blade and Tailwind CSS |
@@ -66,7 +66,7 @@ docker compose up -d
 docker compose exec app php artisan migrate --seed
 ```
 
-Seeding creates the demo bot and queues its seven documents. Embeddings need `OPENAI_API_KEY`. To run without a key, set `DOCSCHAT_AI_DRIVER=fake` before seeding: answers are then canned, but the whole pipeline runs.
+Seeding creates the demo bot and queues its seven documents. Embeddings need a provider key. To run without a key, set `DOCSCHAT_AI_DRIVER=fake` before seeding: answers are then canned, but the whole pipeline runs.
 
 | Page | URL |
 | --- | --- |
@@ -110,9 +110,13 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | | Provider keys. Embeddings always need OpenAI. |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | | Provider keys |
+| `OPENAI_COMPATIBLE_URL`, `OPENAI_COMPATIBLE_API_KEY` | | Any server that speaks the OpenAI API |
 | `DOCSCHAT_AI_DRIVER` | `laravel-ai` | `fake` runs without a provider and is refused in production |
-| `DOCSCHAT_CHAT_PROVIDER` | `openai` | `openai` or `anthropic` |
+| `DOCSCHAT_CHAT_PROVIDER` | `openai` | `openai`, `anthropic` or `openai-compatible` |
+| `DOCSCHAT_EMBEDDING_PROVIDER` | `openai` | `openai` or `openai-compatible` |
+| `DOCSCHAT_CHAT_EXTRA_BODY` | | JSON merged into requests to an OpenAI-compatible server |
+| `DOCSCHAT_MODEL_PRICES` | | JSON with prices for models outside the price table |
 | `DOCSCHAT_CHAT_MODEL`, `DOCSCHAT_REWRITE_MODEL` | `gpt-6-luna` | Models for answers and query rewriting |
 | `DOCSCHAT_EMBEDDING_MODEL` | `text-embedding-3-small` | Changing it re-embeds on the next seed |
 | `DOCSCHAT_RETRIEVAL_MIN_SIMILARITY` | `0.3` | Below this the bot refuses |
@@ -128,6 +132,25 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 | `DOMAIN` | `localhost` | Public domain in production |
 | `APP_PORT`, `PROXY_BIND_ADDRESS` | `8000`, `172.17.0.1` | Where the app listens behind a reverse proxy |
 | `FRANKENPHP_NUM_THREADS` | `16` | Web server threads. Each streamed answer holds one. |
+
+### Using an OpenAI-compatible server
+
+Answers and embeddings can come from any server with the OpenAI `chat/completions` and `embeddings` endpoints, without a code change:
+
+```bash
+OPENAI_COMPATIBLE_URL=https://llm.example.com/v1
+OPENAI_COMPATIBLE_API_KEY=your-key
+DOCSCHAT_CHAT_PROVIDER=openai-compatible
+DOCSCHAT_EMBEDDING_PROVIDER=openai-compatible
+DOCSCHAT_CHAT_MODEL=my-chat-model
+DOCSCHAT_REWRITE_MODEL=my-chat-model
+DOCSCHAT_EMBEDDING_MODEL=my-embedding-model
+DOCSCHAT_CHAT_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'
+DOCSCHAT_MODEL_PRICES='{"my-chat-model":{"input":"0.10","output":"0.50"},"my-embedding-model":{"input":"0.02","output":"0"}}'
+DOCSCHAT_MODERATION_ENABLED=false
+```
+
+Every configured model needs a price, because the daily budget adds them up. The vector columns hold 1536 dimensions, so an embedding model of another size takes a migration. The similarity threshold depends on the embedding model: run the evals after changing it. Moderation calls OpenAI directly, so turn it off when the server has no OpenAI key.
 
 ### Demo protection
 

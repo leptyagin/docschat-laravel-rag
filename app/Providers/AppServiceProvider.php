@@ -98,7 +98,8 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * The daily budget adds up what the models cost, so a model without a price
-     * could spend without limit. Like an unknown driver, that must stop the boot.
+     * could spend without limit, and a malformed price would only fail after the
+     * model has been paid for. Like an unknown driver, both must stop the boot.
      */
     private function ensureModelsArePriced(): void
     {
@@ -116,6 +117,19 @@ class AppServiceProvider extends ServiceProvider
         if ($unpricedModels !== []) {
             throw new InvalidArgumentException('Add a price to docschat.prices for: '.implode(', ', array_unique($unpricedModels)));
         }
+
+        foreach ($config->get('docschat.prices') as $model => $price) {
+            if (! $this->isValidPrice($price)) {
+                throw new InvalidArgumentException("The price of [{$model}] needs \"input\" and \"output\" as decimal strings.");
+            }
+        }
+    }
+
+    private function isValidPrice(mixed $price): bool
+    {
+        return is_array($price)
+            && is_string($price['input'] ?? null) && is_numeric($price['input'])
+            && is_string($price['output'] ?? null) && is_numeric($price['output']);
     }
 
     private function configureTrustedProxies(): void
