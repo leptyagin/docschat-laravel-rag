@@ -22,6 +22,7 @@ use App\Services\Ingestion\Web\DnsHostResolver;
 use App\Services\Ingestion\Web\HostResolver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
@@ -152,7 +153,22 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('documents', fn (Request $request): Limit => $this->perMinuteLimit('documents', $request));
         RateLimiter::for('pages', fn (Request $request): Limit => $this->perMinuteLimit('pages', $request));
 
-        RateLimiter::for('login', fn (Request $request): Limit => $this->perMinuteLimit('login', $request));
+        RateLimiter::for('login', function (Request $request): array {
+            $email = $request->input('email');
+            $email = is_string($email) ? mb_strtolower($email) : '';
+            $limits = [$this->perMinuteLimit('login', $request)];
+
+            /*
+            | The demo address is printed on the login page. A limit on it would
+            | let anyone lock everybody out of the demo, and nothing guards it.
+            */
+            if ($email !== mb_strtolower((string) config('docschat.admin.accounts.demo.email'))) {
+                $limits[] = Limit::perHour(config()->integer('docschat.rate_limits.login_account_per_hour'))
+                    ->by('account:'.hash('sha256', $email));
+            }
+
+            return $limits;
+        });
     }
 
     private function perMinuteLimit(string $name, Request $request): Limit
@@ -169,6 +185,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Auth::provider('configured', fn (Application $app): ConfiguredUserProvider => new ConfiguredUserProvider(
             $app->make('config')->get('docschat.admin.accounts'),
+            $app->make(Hasher::class),
         ));
     }
 

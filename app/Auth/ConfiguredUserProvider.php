@@ -7,16 +7,22 @@ namespace App\Auth;
 use App\Enums\AdminRole;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\UserProvider;
+use Illuminate\Contracts\Hashing\Hasher;
 
 /**
- * An account without a password in the environment cannot log in.
+ * An account without a password in the environment cannot log in. The owner's
+ * password should be stored as a hash. The demo password is shown on the login
+ * page, so it stays readable.
  */
 final readonly class ConfiguredUserProvider implements UserProvider
 {
     /**
      * @param  array<string, array{email: string|null, password: string|null}>  $accounts  Keyed by role.
      */
-    public function __construct(private array $accounts) {}
+    public function __construct(
+        private array $accounts,
+        private Hasher $hasher,
+    ) {}
 
     public function retrieveById($identifier): ?AdminUser
     {
@@ -33,6 +39,9 @@ final readonly class ConfiguredUserProvider implements UserProvider
     public function updateRememberToken(Authenticatable $user, $token): void {}
 
     /**
+     * An unknown address takes as long as a known one, because checking a stored
+     * hash is slow, and the difference would reveal the address of the owner.
+     *
      * @param  array<string, mixed>  $credentials
      */
     public function retrieveByCredentials(array $credentials): ?AdminUser
@@ -45,6 +54,8 @@ final readonly class ConfiguredUserProvider implements UserProvider
             }
         }
 
+        $this->hasher->make((string) ($credentials['password'] ?? ''));
+
         return null;
     }
 
@@ -53,7 +64,12 @@ final readonly class ConfiguredUserProvider implements UserProvider
      */
     public function validateCredentials(Authenticatable $user, array $credentials): bool
     {
-        return hash_equals($user->getAuthPassword(), (string) ($credentials['password'] ?? ''));
+        $stored = $user->getAuthPassword();
+        $given = (string) ($credentials['password'] ?? '');
+
+        return $this->hasher->info($stored)['algo'] === null
+            ? hash_equals($stored, $given)
+            : $this->hasher->check($given, $stored);
     }
 
     /**

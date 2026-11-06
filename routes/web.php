@@ -16,6 +16,7 @@ use App\Http\Middleware\BlockReadOnlyUsers;
 use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\DenyFraming;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
@@ -53,7 +54,7 @@ Route::prefix('admin')->name('admin.')->middleware(['throttle:pages', ContentSec
         Route::post('login', [LoginController::class, 'store'])->middleware('throttle:login');
     });
 
-    Route::middleware('auth')->group(function (): void {
+    Route::middleware(['auth', AuthenticateSession::class])->group(function (): void {
         Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
         Route::get('/', DashboardController::class)->name('dashboard');
