@@ -29,6 +29,14 @@ it('can be framed by any site, but runs only its own script', function (): void 
         ->and($response->headers->get('X-Frame-Options'))->toBeNull();
 });
 
+it('warns visitors of the public demo bot that their questions are visible', function (): void {
+    get(route('widget.show', managedBot()->public_key))->assertSee('appear in the public read-only admin panel');
+});
+
+it('shows no demo warning for any other bot', function (): void {
+    get(route('widget.show', Bot::factory()->create()->public_key))->assertDontSee('appear in the public read-only admin panel');
+});
+
 it('takes the color and greeting from the embedding page', function (): void {
     $bot = Bot::factory()->create();
 
@@ -83,15 +91,13 @@ describe('source files', function (): void {
     });
 
     it('limits how fast one visitor can pull files with 429', function (): void {
+        config()->set('docschat.rate_limits.documents_per_minute', 1);
         Storage::fake('local');
         Storage::disk('local')->put('documents/guide.md', 'Text');
         $bot = Bot::factory()->create();
         $url = route('widget.documents.show', [$bot->public_key, Document::factory()->for($bot)->create(['file_path' => 'documents/guide.md'])]);
 
-        for ($request = 1; $request <= 60; $request++) {
-            get($url)->assertOk();
-        }
-
+        get($url)->assertOk();
         get($url)->assertTooManyRequests();
     });
 

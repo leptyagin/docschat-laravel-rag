@@ -230,6 +230,14 @@ a.source:hover {
     text-align: right;
 }
 
+.notice {
+    margin: 0;
+    padding: 0 12px 8px;
+    color: var(--muted-text);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
 .typing {
     display: inline-flex;
     gap: 4px;

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Widget;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Widget\ShowWidgetRequest;
 use App\Models\Bot;
+use Illuminate\Container\Attributes\Config;
 use Illuminate\Http\Response;
 
 final class WidgetController extends Controller
@@ -15,8 +16,12 @@ final class WidgetController extends Controller
      * The page is made to be framed by any site, and nothing else in the
      * application is. The policy limits it to its own script and API.
      */
-    public function show(ShowWidgetRequest $request, Bot $bot): Response
-    {
+    public function show(
+        ShowWidgetRequest $request,
+        Bot $bot,
+        #[Config('docschat.demo.bot_slug')] string $demoBotSlug,
+        #[Config('docschat.demo.visitor_notice')] string $demoVisitorNotice,
+    ): Response {
         $config = [
             'botName' => $bot->name,
             'greeting' => $request->string('greeting')->toString() ?: $bot->greeting,
@@ -26,6 +31,7 @@ final class WidgetController extends Controller
             'messagesUrl' => route('api.v1.messages.store', $bot->public_key),
             'feedbackUrl' => route('api.v1.feedback.store', [$bot->public_key, '__MESSAGE__']),
             'storageKey' => "docschat:{$bot->public_key}",
+            'notice' => $bot->slug === $demoBotSlug ? $demoVisitorNotice : null,
         ];
 
         return response()

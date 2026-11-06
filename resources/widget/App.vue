@@ -235,5 +235,6 @@ onBeforeUnmount(() => {
             </button>
         </form>
         <p v-if="remaining <= 50" class="counter">{{ remaining }} characters left</p>
+        <p v-if="config.notice" class="notice">{{ config.notice }}</p>
     </div>
 </template>

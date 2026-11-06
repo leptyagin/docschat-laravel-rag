@@ -16,10 +16,12 @@ final class LandingController extends Controller
     public function __invoke(
         #[Config('docschat.demo.bot_slug')] string $botSlug,
         #[Config('docschat.demo.links')] array $links,
+        #[Config('docschat.demo.visitor_notice')] string $visitorNotice,
     ): View {
         return view('landing', [
             'bot' => Bot::query()->firstWhere('slug', $botSlug),
             'links' => $links,
+            'visitorNotice' => $visitorNotice,
         ]);
     }
 }
