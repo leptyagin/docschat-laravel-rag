@@ -1,6 +1,6 @@
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
-export const DEFAULT_COLOR = '#0f766e';
+export const DEFAULT_COLOR = '#0593c6';
 
 export function validColor(color) {
     return HEX_COLOR.test(color ?? '') ? color : DEFAULT_COLOR;

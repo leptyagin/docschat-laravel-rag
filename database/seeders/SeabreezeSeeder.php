@@ -38,7 +38,7 @@ class SeabreezeSeeder extends Seeder
             'public_key' => config()->string('docschat.demo.bot_key'),
             'greeting' => 'Hi! I can answer questions about staying at Seabreeze Hotels.',
             'fallback_contact' => 'hello@seabreeze.example',
-            'theme' => ['color' => '#0f766e', 'position' => 'right'],
+            'theme' => ['color' => '#0593c6', 'position' => 'right'],
             'suggested_questions' => self::SUGGESTED_QUESTIONS,
         ]);
 

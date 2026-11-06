@@ -18,9 +18,12 @@ const STYLES = `
         border-radius: 50%;
         background: var(--accent);
         color: var(--on-accent);
-        box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+        box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 45%, rgb(0 0 0 / 30%));
         cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.25s ease;
     }
+
+    .launcher:hover { transform: translateY(-2px) scale(1.03); }
 
     .launcher:focus-visible {
         outline: 3px solid var(--accent);
@@ -35,14 +38,26 @@ const STYLES = `
         width: min(400px, calc(100vw - 40px));
         height: min(640px, calc(100vh - 108px));
         overflow: hidden;
-        border-radius: 16px;
-        background: #ffffff;
-        box-shadow: 0 12px 40px rgb(0 0 0 / 30%);
+        border-radius: 22px;
+        background: #fcffff;
+        box-shadow: 0 16px 48px rgb(4 34 68 / 34%);
     }
 
     .right { right: 20px; }
     .left { left: 20px; }
-    .panel.open { display: block; }
+    .panel.open {
+        display: block;
+        animation: rise 0.32s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    @keyframes rise {
+        from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .launcher { transition: none; }
+        .panel.open { animation: none; }
+    }
 
     iframe {
         display: block;

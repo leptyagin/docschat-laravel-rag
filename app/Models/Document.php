@@ -9,6 +9,8 @@ use App\Enums\DocumentStatus;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -57,6 +59,15 @@ class Document extends Model
     }
 
     /**
+     * A reader sees exactly the documents the file route can serve, while a web
+     * page stays at its own address. A re-index does not take a document away.
+     */
+    public function isReadable(): bool
+    {
+        return $this->file_path !== null && $this->chunk_count > 0;
+    }
+
+    /**
      * Published chunks stay searchable, so a failed re-index never takes a
      * working document offline. Only the unfinished work is discarded.
      */
@@ -87,6 +98,15 @@ class Document extends Model
     public function chunks(): HasMany
     {
         return $this->hasMany(Chunk::class);
+    }
+
+    /**
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function readable(Builder $query): void
+    {
+        $query->whereNotNull('file_path')->where('chunk_count', '>', 0);
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\UnansweredController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\Widget\DocumentController as WidgetDocumentController;
 use App\Http\Controllers\Widget\WidgetController;
+use App\Http\Controllers\Workspace\DocumentController as WorkspaceDocumentController;
 use App\Http\Middleware\BlockReadOnlyUsers;
 use App\Http\Middleware\DenyFraming;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,12 @@ Route::prefix('widget/{bot:public_key}')->name('widget.')->group(function (): vo
         ->scopeBindings()
         ->name('documents.show');
 });
+
+Route::get('read/{bot:public_key}/{document}', [WorkspaceDocumentController::class, 'show'])
+    ->middleware('throttle:documents')
+    ->where('document', '[0-9]{1,18}')
+    ->scopeBindings()
+    ->name('reader.show');
 
 Route::prefix('admin')->name('admin.')->group(function (): void {
     Route::middleware('guest')->group(function (): void {

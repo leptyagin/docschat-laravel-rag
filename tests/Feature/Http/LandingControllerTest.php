@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Models\Document;
+
 use function Pest\Laravel\get;
 
 it('presents the demo with the widget open and the example questions', function (): void {
@@ -28,6 +30,17 @@ it('shows only the links that are configured', function (): void {
         ->assertSee('https://git.example/repo')
         ->assertDontSee('Hire me')
         ->assertSee('Read-only admin panel');
+});
+
+it('opens the documents of the demo from the library', function (): void {
+    $bot = managedBot();
+    $document = Document::factory()->for($bot)->ready()->create(['title' => 'Pets Policy']);
+    Document::factory()->for($bot)->create(['title' => 'Still Processing']);
+
+    get(route('home'))
+        ->assertSee('Pets Policy')
+        ->assertSee(route('reader.show', [$bot->public_key, $document]))
+        ->assertDontSee('Still Processing');
 });
 
 it('still renders before the demo bot has been seeded', function (): void {

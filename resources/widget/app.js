@@ -1,11 +1,12 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import styles from './widget.css?inline';
+import styles from './chat.css?inline';
+import pageStyles from './widget.css?inline';
 import { readableOn, validColor } from './color.js';
 
 export function mountApp(config) {
     const style = document.createElement('style');
-    style.textContent = styles;
+    style.textContent = pageStyles + styles;
     document.head.append(style);
 
     const accent = validColor(config.color);

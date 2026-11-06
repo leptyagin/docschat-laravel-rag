@@ -46,6 +46,7 @@ The system prompts are in [`resources/prompts`](resources/prompts).
 | Queues and cache | Redis 8, Laravel Horizon |
 | LLM access | Laravel AI SDK (OpenAI, Anthropic) behind `ChatModel` and `EmbeddingModel` interfaces |
 | Widget | Vue 3, built into one standalone `widget.js` |
+| Workspace | Blade, Vue 3 for the chat, a WebGL background without libraries |
 | Admin panel | Blade and Tailwind CSS |
 | PDF extraction | poppler-utils (`pdftotext`) |
 | Quality | Pest, Larastan (level 6), Laravel Pint, GitHub Actions, an eval suite for answer quality |
@@ -198,6 +199,7 @@ docker/             Web server, PHP and entrypoint configuration
 resources/prompts/  System prompts
 resources/views/    Admin panel and demo page
 resources/widget/   The Vue widget and its launcher
+resources/workspace/ The document workspace: background, panels, page changes
 tests/              Pest tests and the eval questions
 ```
 

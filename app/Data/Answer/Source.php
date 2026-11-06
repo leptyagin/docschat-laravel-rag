@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Data\Answer;
 
+use App\Data\Reader\ReaderPassage;
 use App\Models\Bot;
 use App\Models\Chunk;
 use Illuminate\Support\Str;
@@ -24,6 +25,7 @@ final readonly class Source
         public string $title,
         public ?int $page,
         public ?string $url,
+        public ?string $readerUrl,
         public string $excerpt,
     ) {}
 
@@ -31,6 +33,7 @@ final readonly class Source
     {
         $document = $chunk->document;
         $fileUrl = route('widget.documents.show', [$bot->public_key, $document->id]);
+        $readerUrl = route('reader.show', [$bot->public_key, $document->id]).'#'.ReaderPassage::anchorFor($chunk->position);
 
         return new self(
             number: $number,
@@ -38,6 +41,7 @@ final readonly class Source
             title: $document->title,
             page: $chunk->page,
             url: $document->source_url ?? ($chunk->page === null ? $fileUrl : "{$fileUrl}#page={$chunk->page}"),
+            readerUrl: $document->source_url === null ? $readerUrl : null,
             excerpt: Str::limit($chunk->content, self::EXCERPT_LENGTH),
         );
     }
@@ -45,7 +49,7 @@ final readonly class Source
     /**
      * What a visitor sees.
      *
-     * @return array{number: int, title: string, page: int|null, url: string|null}
+     * @return array{number: int, title: string, page: int|null, url: string|null, reader_url: string|null}
      */
     public function toArray(): array
     {
@@ -54,6 +58,7 @@ final readonly class Source
             'title' => $this->title,
             'page' => $this->page,
             'url' => $this->url,
+            'reader_url' => $this->readerUrl,
         ];
     }
 
@@ -61,7 +66,7 @@ final readonly class Source
      * What is stored with the message. Re-indexing a document replaces its
      * chunks, so a past answer must keep its own record of what it cited.
      *
-     * @return array{number: int, title: string, page: int|null, url: string|null, excerpt: string}
+     * @return array{number: int, title: string, page: int|null, url: string|null, reader_url: string|null, excerpt: string}
      */
     public function toSnapshot(): array
     {

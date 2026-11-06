@@ -86,6 +86,7 @@ describe('answering', function (): void {
 
         $document = Document::query()->firstOrFail();
         $sourceUrl = route('widget.documents.show', [$conversation->bot->public_key, $document->id]).'#page=2';
+        $readerUrl = route('reader.show', [$conversation->bot->public_key, $document->id]).'#passage-0';
 
         expect($events[0]->type)->toBe(AnswerEventType::Started)
             ->and(app(ConversationTokens::class)->conversationId($events[0]->data['conversation_token']))->toBe($conversation->id)
@@ -93,8 +94,27 @@ describe('answering', function (): void {
             ->and(end($events)->data)->toBe([
                 'message_id' => $message->id,
                 'answered' => true,
-                'sources' => [['number' => 1, 'title' => 'Pets Policy', 'page' => 2, 'url' => $sourceUrl]],
+                'sources' => [['number' => 1, 'title' => 'Pets Policy', 'page' => 2, 'url' => $sourceUrl, 'reader_url' => $readerUrl]],
             ]);
+    });
+
+    it('links a source on the web to its page and not to the reader', function (): void {
+        fakeEmbeddings()->returnVector(array_pad([1.0], 1536, 0.0));
+        fakeChat('Yes [1].');
+
+        $bot = Bot::factory()->create();
+
+        Chunk::factory()
+            ->for(Document::factory()->for($bot)->fromUrl('https://example.com/pets'))
+            ->for($bot)
+            ->create(['content' => 'Dogs are welcome.', 'embedding' => array_pad([1.0], 1536, 0.0)]);
+
+        [$events] = ask(conversationFor($bot));
+
+        $source = end($events)->data['sources'][0];
+
+        expect($source['url'])->toBe('https://example.com/pets')
+            ->and($source['reader_url'])->toBeNull();
     });
 
     it('stores the question with the query used for the search', function (): void {
@@ -137,6 +157,7 @@ describe('answering', function (): void {
             'title' => 'Pets Policy',
             'page' => 2,
             'url' => route('widget.documents.show', [$message->conversation->bot->public_key, Document::query()->firstOrFail()->id]).'#page=2',
+            'reader_url' => route('reader.show', [$message->conversation->bot->public_key, Document::query()->firstOrFail()->id]).'#passage-0',
             'excerpt' => 'Dogs up to 15 kg are welcome.',
         ]]);
     });

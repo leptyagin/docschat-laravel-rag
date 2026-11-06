@@ -73,7 +73,7 @@ final readonly class HybridRetriever
 
         $chunks = Chunk::query()
             ->with('document:id,title,source_url')
-            ->findMany(array_map(fn (object $row): int => $row->id, $rows), ['id', 'document_id', 'heading', 'page', 'content'])
+            ->findMany(array_map(fn (object $row): int => $row->id, $rows), ['id', 'document_id', 'position', 'heading', 'page', 'content'])
             ->keyBy('id');
 
         $retrieved = [];
