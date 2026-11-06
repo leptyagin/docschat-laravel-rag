@@ -22,7 +22,7 @@ services:
     environment:
       SERVER_NAME: ":80"
     ports:
-      - "${APP_PORT:-8000}:80"
+      - "127.0.0.1:${APP_PORT:-8000}:80"
     volumes:
       - .:/app
       - caddy_data:/data/caddy
@@ -58,7 +58,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-docschat}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
     ports:
-      - "${FORWARD_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${FORWARD_DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init-testing-db.sql:/docker-entrypoint-initdb.d/10-testing-db.sql:ro
@@ -72,7 +72,7 @@ services:
     image: redis:8-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "${FORWARD_REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${FORWARD_REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -89,7 +89,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
 
 volumes:
   postgres_data:

@@ -19,6 +19,7 @@
 !vite.widget.config.js
 
 public/build
+public/embed-test.html
 public/hot
 public/storage
 storage/app/*

@@ -24,7 +24,9 @@
 	}
 
 	# A question is 500 characters at most, so the API never needs the upload limit.
-	request_body /api/* {
+	# The front controller answers on its own path too, so that spelling needs the limit as well.
+	@api path /api/* /index.php/api/*
+	request_body @api {
 		max_size 16KB
 	}
 

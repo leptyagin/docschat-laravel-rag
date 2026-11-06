@@ -26,6 +26,14 @@ x-prod-app: &prod-app
   restart: unless-stopped
   env_file: .env
   environment: *prod-environment
+  # The application runs as a plain user. FrankenPHP carries this one capability as a file
+  # capability, and the kernel refuses to run it if the capability is not available.
+  cap_drop:
+    - ALL
+  cap_add:
+    - NET_BIND_SERVICE
+  security_opt:
+    - no-new-privileges:true
   volumes: !override
     - app_storage:/app/storage/app
 
@@ -68,6 +76,8 @@ services:
   postgres:
     <<: *logging
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     ports: !reset []
@@ -81,6 +91,14 @@ services:
   redis:
     <<: *logging
     restart: unless-stopped
+    # Queued jobs are serialized PHP, so whoever can write to Redis can run code in the worker.
+    # Keys with a lifetime (sessions, cache, limits) make way first, and queued jobs have none.
+    command: ["sh", "-c", 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD" --maxmemory 192mb --maxmemory-policy volatile-lru']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+    security_opt:
+      - no-new-privileges:true
     ports: !reset []
     deploy:
       resources:

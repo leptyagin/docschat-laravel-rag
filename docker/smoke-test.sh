@@ -30,4 +30,11 @@ response=$(head -c 20000 /dev/zero | tr '\0' 'a' | curl --silent --show-error \
 grep --quiet '"message"' <<< "$response"
 grep --quiet '^413 application/json$' <<< "$response" || { echo "Oversized request got: ${response}" >&2; exit 1; }
 
+# The front controller's own path must not get around the limit.
+status=$(head -c 20000 /dev/zero | tr '\0' 'a' | curl --silent --output /dev/null --write-out '%{http_code}' \
+    --header 'Content-Type: application/json' --data-binary @- \
+    "${url}/index.php/api/v1/bots/unknown/messages")
+
+[ "$status" = "413" ] || { echo "Oversized request through index.php got: ${status}" >&2; exit 1; }
+
 echo "The web server rules hold."
