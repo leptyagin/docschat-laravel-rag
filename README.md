@@ -2,14 +2,14 @@
 
 An AI chatbot that answers website visitors only from a company's own documents, cites its sources, and says "I don't know" when the answer isn't there.
 
-> **Screenshot placeholder:** the widget answering with source chips, next to the admin dashboard.
+![The chat answering from the Pets Policy, with numbered citations and source chips](.github/assets/demo.png)
 
 ## Live demo
 
 The demo runs on Seabreeze Hotels, a fictional company.
 
-- Chat with the bot: `https://YOUR-DOMAIN`
-- Read-only admin panel: `https://YOUR-DOMAIN/admin` (the login is shown on the page)
+- Chat with the bot: [docschat.jobeng.online](https://docschat.jobeng.online)
+- Read-only admin panel: [docschat.jobeng.online/admin](https://docschat.jobeng.online/admin) (the login is shown on the page)
 
 ## What it does
 
@@ -20,7 +20,7 @@ The demo runs on Seabreeze Hotels, a fictional company.
 - Joins any website with one `<script>` tag, isolated from the site's styles
 - Streams answers as they are written
 - Gives the owner an admin panel with documents, conversations and their sources, grouped unanswered questions, and the cost and latency of each answer
-- Protects the public demo with rate limits, a paced daily spending cap, moderation, and input and output limits
+- Protects the public demo with rate limits, a paced daily spending cap, and input and output limits, with optional moderation
 
 ## How it works
 
@@ -28,7 +28,7 @@ The demo runs on Seabreeze Hotels, a fictional company.
 
 **Each question** goes through these steps:
 
-1. The question goes through the provider's moderation check, and a follow-up is rewritten into a standalone search query, using the last 6 messages.
+1. The question goes through the provider's moderation check when that is on, and a follow-up is rewritten into a standalone search query, using the last 6 messages.
 2. Chunks are ranked by cosine similarity (pgvector, HNSW) and by full-text search, and the two rankings are merged with Reciprocal Rank Fusion. The top 6 are kept.
 3. If the best similarity is below the threshold, the bot refuses without calling the chat model.
 4. The model answers from those chunks only, with inline citations. Retrieved text and the question travel in blocks closed by a random tag made for that request, so neither can pose as part of the prompt.
@@ -102,7 +102,17 @@ This sends the 36 questions in [`tests/evals/questions.yaml`](tests/evals/questi
 
 With a real provider a run spends a few cents. With the fake driver the numbers say nothing about answer quality, and the command warns about that. Use `--bot` and `--questions` to test another bot.
 
-> **Results placeholder:** the numbers from the latest run go here.
+Latest run on the demo documents:
+
+| Metric | Result |
+| --- | --- |
+| Source hit rate | 28/28 |
+| Answers with the expected facts | 21/21 |
+| False refusals | 0/28 |
+| Correct refusals | 6/8 |
+| Errors | 0 |
+| Average cost per question | $0.0033 |
+| Average latency | about 1 s |
 
 ## Configuration
 
