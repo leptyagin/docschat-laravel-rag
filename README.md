@@ -139,6 +139,7 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | `demo@example.com`, `demo` | Read-only login, shown on the login page |
 | `DEMO_BOT_KEY` | `pk_seabreeze_demo` | The bot shown on the demo page |
 | `DEMO_REPOSITORY_URL`, `DEMO_AUTHOR_URL`, `DEMO_AUTHOR_LABEL` | | Links on the demo page. Empty links are hidden. |
+| `DEMO_CREDIT_NAME`, `DEMO_CREDIT_GITHUB_URL`, `DEMO_CREDIT_UPWORK_URL` | The author's | The author line in the header and footer. An empty name hides it, an empty link hides the link. |
 | `DOMAIN` | `localhost` | Public domain in production |
 | `APP_PORT`, `PROXY_BIND_ADDRESS` | `8000`, `172.17.0.1` | Where the app listens behind a reverse proxy |
 | `FRANKENPHP_NUM_THREADS` | `16` | Web server threads. Each streamed answer holds one. |
@@ -255,3 +256,7 @@ tests/              Pest tests and the eval questions
 - **The admin login has no second factor.** The panel is meant to sit behind a strong password and the login limits.
 - **Conversations on the public demo are visible** in the read-only admin panel, and the demo page and chat both say so.
 - **The interface is in English,** though answers follow the language of the question.
+
+## Author
+
+Built by Sergei L. Find more of my work on [GitHub](https://github.com/leptyagin), or [hire me on Upwork](https://www.upwork.com/freelancers/~012a1a9954c034eef8).

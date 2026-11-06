@@ -24,11 +24,11 @@ it('warns visitors that their questions are visible in the public admin panel', 
 
 it('shows only the links that are configured', function (): void {
     managedBot();
-    config()->set('docschat.demo.links', ['repository_url' => 'https://git.example/repo', 'author_url' => null, 'author_label' => 'Hire me']);
+    config()->set('docschat.demo.links', ['repository_url' => 'https://git.example/repo', 'author_url' => null, 'author_label' => 'Work together']);
 
     get(route('home'))
         ->assertSee('https://git.example/repo')
-        ->assertDontSee('Hire me')
+        ->assertDontSee('Work together')
         ->assertSee('Read-only admin panel');
 });
 

@@ -4,6 +4,7 @@
 @import 'tailwindcss/preflight' layer(base);
 @import 'lenis/dist/lenis.css';
 @import './fonts.css';
+@import './credit.css' layer(components);
 @import '../widget/chat.css';
 
 @theme {
@@ -19,7 +20,7 @@
 :root {
     --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
     --gutter: 16px;
-    --topbar-height: 60px;
+    --topbar-height: 88px;
     --topbar-top: 12px;
     --stage-top: calc(var(--topbar-height) + var(--topbar-top) + 16px);
     --tabbar-space: 84px;
@@ -39,6 +40,7 @@
 
 @media (min-width: 1024px) {
     :root {
+        --topbar-height: 60px;
         --tabbar-space: 0px;
         --gutter: 24px;
     }
@@ -113,10 +115,12 @@
         right: var(--gutter);
         left: var(--gutter);
         display: flex;
+        flex-wrap: wrap;
+        align-content: space-between;
         align-items: center;
-        gap: 14px;
+        gap: 0 14px;
         height: var(--topbar-height);
-        padding: 0 10px 0 18px;
+        padding: 8px 10px 6px 18px;
         overflow: hidden;
         border: 1px solid var(--glass-line);
         border-radius: 20px;
@@ -168,6 +172,15 @@
         border-left: 1px solid var(--glass-line);
         font-size: 14px;
         opacity: 0.84;
+    }
+
+    /* The author line takes a row of its own until the bar has room for it. */
+    .ws-topbar__credit {
+        order: 1;
+        flex: 0 0 100%;
+        justify-content: center;
+        flex-wrap: nowrap;
+        overflow: hidden;
     }
 
     .ws-topbar__actions {
@@ -247,6 +260,21 @@
     .ws-enter {
         animation: ws-enter 0.8s var(--ease-out) both;
         animation-delay: calc(var(--step, 0) * 80ms);
+    }
+
+    .ws-footer {
+        display: flex;
+        grid-column: 1 / -1;
+        justify-content: center;
+        margin-top: 12px;
+    }
+
+    .ws-footer .credit {
+        justify-content: center;
+        padding: 8px 16px;
+        border: 1px solid var(--glass-line);
+        border-radius: 14px;
+        background: var(--glass-dark);
     }
 
     /* Library rail: a drawer until the screen has room for it. */
@@ -970,7 +998,8 @@
             overflow: hidden;
         }
 
-        [data-view='assistant'] .ws-stage {
+        [data-view='assistant'] .ws-stage,
+        [data-view='assistant'] .ws-footer {
             visibility: hidden;
         }
 
@@ -995,6 +1024,21 @@
 
     /* From here the assistant docks beside the document. */
     @media (min-width: 1024px) {
+        .ws-topbar {
+            flex-wrap: nowrap;
+            padding-block: 0;
+        }
+
+        .ws-topbar__credit {
+            order: 0;
+            flex: 0 0 auto;
+            margin-left: auto;
+        }
+
+        .ws-topbar__actions {
+            margin-left: 0;
+        }
+
         .ws-shell {
             grid-template-columns: minmax(0, 1fr) clamp(360px, 32vw, 460px);
             transition: grid-template-columns 0.42s var(--ease-out);
@@ -1087,6 +1131,16 @@
         }
     }
 
+    @media (max-width: 359px) {
+        .ws-topbar__actions {
+            gap: 6px;
+        }
+
+        .ws-chip {
+            padding: 0 10px;
+        }
+    }
+
     @media (max-width: 479px) {
         .ws-brand {
             font-size: 16px;
@@ -1094,6 +1148,10 @@
 
         .ws-topbar {
             padding-left: 14px;
+        }
+
+        .ws-topbar__credit {
+            font-size: 12px;
         }
 
         .ws-sheet {
@@ -1108,6 +1166,7 @@
         .ws-rail,
         .ws-assistant,
         .ws-tabbar,
+        .ws-footer,
         .ws-actions,
         .ws-ask {
             display: none;

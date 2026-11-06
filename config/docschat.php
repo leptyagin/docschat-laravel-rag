@@ -176,6 +176,12 @@ return [
             'author_url' => env('DEMO_AUTHOR_URL'),
             'author_label' => env('DEMO_AUTHOR_LABEL', 'Work with me'),
         ],
+
+        'credit' => [
+            'name' => env('DEMO_CREDIT_NAME', 'Sergei L.'),
+            'github_url' => env('DEMO_CREDIT_GITHUB_URL', 'https://github.com/leptyagin'),
+            'upwork_url' => env('DEMO_CREDIT_UPWORK_URL', 'https://www.upwork.com/freelancers/~012a1a9954c034eef8'),
+        ],
     ],
 
     /*

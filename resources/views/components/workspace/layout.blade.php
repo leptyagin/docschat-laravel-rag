@@ -41,6 +41,8 @@
             <span class="ws-topbar__context">{{ $bot->name }}</span>
         @endif
 
+        <x-credit class="ws-topbar__credit" />
+
         <div class="ws-topbar__actions">
             <a class="ws-chip" href="{{ route('admin.login') }}">Admin</a>
 
@@ -76,6 +78,10 @@
                 <div id="docschat-app" class="ws-assistant__mount"></div>
             </aside>
         @endif
+
+        <footer class="ws-footer">
+            <x-credit />
+        </footer>
     </div>
 
     @if ($chat)

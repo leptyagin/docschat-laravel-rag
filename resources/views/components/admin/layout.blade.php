@@ -57,16 +57,18 @@
                     </a>
                 @endforeach
             </nav>
+
+            <x-credit class="admin-credit w-full justify-center text-haze lg:order-last" />
         </header>
 
-        <div class="min-w-0">
+        <div class="flex min-w-0 flex-col">
             @if (auth()->user()?->isReadOnly())
                 <p class="border-b border-amber-400/20 bg-amber-400/10 px-4 py-2 text-center text-sm text-amber-200">
                     You are viewing a read-only demo. Changes are switched off.
                 </p>
             @endif
 
-            <main class="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 lg:px-8 lg:py-10">
+            <main class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6 lg:px-8 lg:py-10">
                 <h1 class="text-3xl font-light tracking-tight lg:text-4xl">{{ $title }}</h1>
 
                 @if (session('status'))
@@ -79,6 +81,10 @@
 
                 {{ $slot }}
             </main>
+
+            <footer class="border-t border-line px-4 py-4 text-haze lg:px-8">
+                <x-credit class="justify-center" />
+            </footer>
         </div>
     </div>
 </body>

@@ -1,6 +1,6 @@
 const SWAPPED = ['ws-rail-content', 'ws-stage'];
 const LEAVE_MS = 140;
-const HEADING_OFFSET = 104;
+const HEADING_GAP = 8;
 
 /**
  * Opens workspace pages without a page load, so that the assistant keeps its
@@ -9,6 +9,13 @@ const HEADING_OFFSET = 104;
  */
 export function createNavigation({ onChange, reducedMotion, scroller }) {
     let latest = 0;
+
+    /**
+     * The top bar is taller on a small screen, and the stylesheet knows by how much.
+     */
+    function headingOffset() {
+        return parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) + HEADING_GAP;
+    }
 
     function scrollToTarget(hash, { immediate }) {
         const element = hash ? document.getElementById(hash.slice(1)) : null;
@@ -21,7 +28,7 @@ export function createNavigation({ onChange, reducedMotion, scroller }) {
 
         const isPassage = element.classList.contains('passage');
         const { top, height } = element.getBoundingClientRect();
-        const offset = isPassage ? (window.innerHeight - height) / 2 : HEADING_OFFSET;
+        const offset = isPassage ? (window.innerHeight - height) / 2 : headingOffset();
 
         scroller.to(Math.max(0, window.scrollY + top - offset), { immediate });
 

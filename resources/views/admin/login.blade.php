@@ -9,8 +9,12 @@
     <title>Log in · DocsChat admin</title>
     @vite('resources/css/app.css')
 </head>
-<body class="flex min-h-screen items-center justify-center p-4 text-mist antialiased">
-    <main class="flex w-full max-w-sm flex-col gap-4">
+<body class="flex min-h-screen flex-col items-center gap-6 p-4 text-mist antialiased">
+    <header>
+        <x-credit class="justify-center text-haze" />
+    </header>
+
+    <main class="my-auto flex w-full max-w-sm flex-col gap-4">
         <h1 class="flex items-center justify-center gap-3 text-3xl font-light tracking-tight">
             <span class="admin-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
             DocsChat admin
@@ -40,5 +44,9 @@
 
         <a href="{{ route('home') }}" class="self-center rounded-lg text-sm font-medium text-haze transition-colors hover:text-mist">Back to the landing page</a>
     </main>
+
+    <footer>
+        <x-credit class="justify-center text-haze" />
+    </footer>
 </body>
 </html>

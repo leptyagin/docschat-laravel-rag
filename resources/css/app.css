@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './fonts.css';
+@import './credit.css' layer(components);
 @import './scrollbar.css';
 
 @source '../../storage/framework/views/*.php';
@@ -69,6 +70,18 @@
         background: var(--color-raised);
         color: var(--color-mist);
         cursor: pointer;
+    }
+
+    /* The sidebar is too narrow for one line. */
+    @media (min-width: 64rem) {
+        .admin-credit {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .admin-credit .credit__separator {
+            display: none;
+        }
     }
 
     .admin-mark {
