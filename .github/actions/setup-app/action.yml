@@ -1,0 +1,30 @@
+name: Set up the application
+description: Installs PHP and the locked Composer dependencies.
+
+runs:
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+      with:
+        php-version: "8.5"
+        extensions: bcmath, intl, pcntl, pdo_pgsql, pgsql, redis, zip
+        tools: composer:v2
+        coverage: none
+
+    - id: composer-cache
+      shell: bash
+      run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+        restore-keys: composer-${{ runner.os }}-
+
+    - shell: bash
+      run: composer install --no-interaction --no-progress --prefer-dist
+
+    - shell: bash
+      run: |
+        cp .env.example .env
+        php artisan key:generate --no-interaction
