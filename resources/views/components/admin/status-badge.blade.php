@@ -1,8 +1,11 @@
 @props(['status'])
 
 <span @class([
-    'inline-block rounded-full px-2 py-0.5 text-xs font-medium',
-    'bg-emerald-100 text-emerald-800' => $status === \App\Enums\DocumentStatus::Ready,
-    'bg-red-100 text-red-800' => $status === \App\Enums\DocumentStatus::Failed,
-    'bg-sky-100 text-sky-800' => $status->isInFlight(),
-])>{{ ucfirst($status->value) }}</span>
+    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+    'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' => $status === \App\Enums\DocumentStatus::Ready,
+    'border-red-400/30 bg-red-400/10 text-red-300' => $status === \App\Enums\DocumentStatus::Failed,
+    'border-sky-400/30 bg-sky-400/10 text-sky-300' => $status->isInFlight(),
+])>
+    <span @class(['size-1.5 rounded-full bg-current', 'animate-pulse' => $status->isInFlight()]) aria-hidden="true"></span>
+    {{ ucfirst($status->value) }}
+</span>

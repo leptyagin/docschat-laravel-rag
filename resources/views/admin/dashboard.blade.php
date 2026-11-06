@@ -8,7 +8,7 @@
     </div>
 
     <x-admin.card>
-        <h2 class="mb-2 font-semibold">Top unanswered questions</h2>
+        <h2 class="mb-3 font-semibold">Top unanswered questions</h2>
         <x-admin.question-groups :groups="$unanswered" />
     </x-admin.card>
 </x-admin.layout>

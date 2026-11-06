@@ -1,0 +1,35 @@
+/*
+ * One scrollbar for the whole product: a slim pill in the brand gradient. Setting
+ * scrollbar-color would switch these rules off in Chromium, so it is only for
+ * browsers that have no ::-webkit-scrollbar.
+ */
+@media (hover: hover) {
+    ::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+    }
+
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        min-height: 48px;
+        border: 3px solid transparent;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #33d4e0, #0593c6 48%, #d83995) padding-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        border-width: 2px;
+        background: linear-gradient(180deg, #7fe6ee, #22aede 48%, #f06ab5) padding-box;
+    }
+}
+
+@supports not selector(::-webkit-scrollbar) {
+    * {
+        scrollbar-color: #0593c6 transparent;
+        scrollbar-width: thin;
+    }
+}

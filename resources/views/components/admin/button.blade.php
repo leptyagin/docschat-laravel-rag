@@ -6,10 +6,10 @@
 
 <button
     {{ $attributes->class([
-        'inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50',
-        'bg-brand text-white hover:bg-brand-dark' => $variant === 'primary',
-        'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50' => $variant === 'secondary',
-        'border border-red-300 bg-white text-red-700 hover:bg-red-50' => $variant === 'danger',
+        'inline-flex cursor-pointer items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45',
+        'bg-linear-to-br from-brand to-[#0a62ad] text-white shadow-lg shadow-brand/20 enabled:hover:brightness-115' => $variant === 'primary',
+        'border border-line bg-raised text-mist enabled:hover:border-brand' => $variant === 'secondary',
+        'border border-red-500/35 bg-red-500/10 text-red-300 enabled:hover:bg-red-500/20' => $variant === 'danger',
     ]) }}
     @disabled($isReadOnly)
     @if ($isReadOnly) title="Switched off in the read-only demo" @endif
