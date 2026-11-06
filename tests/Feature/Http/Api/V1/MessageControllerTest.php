@@ -57,7 +57,7 @@ function serverSentEvents(TestResponse $response): array
 }
 
 it('streams an answer as server-sent events', function (): void {
-    $bot = chattingBot('Dogs are welcome [1].');
+    $bot = chattingBot('Dogs are welcome [1]. They stay in the garden rooms.');
 
     $response = postMessage($bot, ['question' => 'Are dogs allowed?']);
 
@@ -69,7 +69,7 @@ it('streams an answer as server-sent events', function (): void {
     expect($response->headers->get('Content-Type'))->toStartWith('text/event-stream')
         ->and($response->headers->get('Cache-Control'))->toContain('no-transform')
         ->and($events[0]['event'])->toBe('started')
-        ->and(implode('', array_map(fn (array $event): string => $event['data']['text'], $deltas)))->toBe('Dogs are welcome [1].')
+        ->and(implode('', array_map(fn (array $event): string => $event['data']['text'], $deltas)))->toBe('Dogs are welcome [1]. They stay in the garden rooms.')
         ->and(count($deltas))->toBeGreaterThan(1)
         ->and(end($events)['event'])->toBe('completed')
         ->and(end($events)['data']['answered'])->toBeTrue()
