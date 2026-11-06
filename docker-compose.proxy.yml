@@ -1,0 +1,48 @@
+# Shared server: another reverse proxy already owns ports 80 and 443, and it terminates HTTPS.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d --build
+#
+# The port is published on the Docker bridge address only, so containers on this server can reach
+# it and the internet cannot. A shared Docker network would be the wrong tool: Compose aliases
+# every container by its service name, so the proxy's own "app" could resolve to this "app".
+#
+# The site for the proxy is in docker/nginx/docschat.conf.template.
+
+services:
+  app:
+    environment:
+      SERVER_NAME: ":80"
+      # Docker's address ranges, not "*": Laravel then reads X-Forwarded-For from the right, so
+      # a visitor cannot pick their own address by forging the left end of the header.
+      TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    ports: !override
+      - "${PROXY_BIND_ADDRESS:-172.17.0.1}:${APP_PORT:-8000}:80"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/up"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+
+  worker:
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+
+  scheduler:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"

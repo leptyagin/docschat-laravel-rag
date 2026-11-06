@@ -123,6 +123,7 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 | `DEMO_BOT_KEY` | `pk_seabreeze_demo` | The bot shown on the demo page |
 | `DEMO_REPOSITORY_URL`, `DEMO_AUTHOR_URL`, `DEMO_AUTHOR_LABEL` | | Links on the demo page. Empty links are hidden. |
 | `DOMAIN` | `localhost` | Public domain in production |
+| `APP_PORT`, `PROXY_BIND_ADDRESS` | `8000`, `172.17.0.1` | Where the app listens behind a reverse proxy |
 | `FRANKENPHP_NUM_THREADS` | `16` | Web server threads. Each streamed answer holds one. |
 
 ### Demo protection
@@ -137,7 +138,7 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 | API request body | 16 KB, enforced by the web server |
 | Admin panel | the demo account can read everything and change nothing |
 
-Limits count per IPv4 address or per IPv6 /48 network, because one IPv6 customer can hold thousands of addresses. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit. Only do that when the origin cannot be reached directly, because a trusted proxy header can otherwise be forged.
+Limits count per IPv4 address or per IPv6 /48 network, because one IPv6 customer can hold thousands of addresses. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit. Only do that when the origin cannot be reached directly, because a trusted proxy header can otherwise be forged. Prefer addresses to `*`: with `*` Laravel trusts every hop and takes the leftmost address, which the visitor controls unless the proxy overwrites the header.
 
 The application refuses to start if a configured model is missing from the price table, because the daily cap could not count its cost.
 
@@ -165,6 +166,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app php art
 ```
 
 FrankenPHP (Caddy) issues the HTTPS certificate for `DOMAIN` automatically, and migrations run when the app starts. The database and Redis ports are not exposed, every container has a memory limit and a restart policy, logs go to Docker with rotation, and session cookies are HTTPS-only.
+
+### Production behind a reverse proxy
+
+On a server where another nginx already owns ports 80 and 443, that nginx terminates HTTPS and DocsChat serves plain HTTP behind it. Add this to `.env`, so that plain `docker compose` picks up all three files:
+
+```bash
+COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml:docker-compose.proxy.yml
+```
+
+[`docker-compose.proxy.yml`](docker-compose.proxy.yml) publishes the app only on the Docker bridge address (`172.17.0.1:8000`), which other containers can reach and the internet cannot. It sets `TRUSTED_PROXIES` to the private address ranges, so per-visitor limits see the real client address, and it adds CPU limits so that DocsChat cannot starve its neighbours.
+
+Check the bridge address with `ip -4 addr show docker0`, then give the proxy the site in [`docker/nginx/docschat.conf.template`](docker/nginx/docschat.conf.template). Issue the certificate before adding the site, because nginx does not start with a missing certificate file, and that would stop every other site on the server. The site raises the upload limit to 25 MB, turns off response buffering for the streamed answers, and keeps the upstream a literal address, so nginx still starts while DocsChat is down.
 
 ## Project structure
 
