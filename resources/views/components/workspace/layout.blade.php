@@ -42,6 +42,8 @@
         @endif
 
         <div class="ws-topbar__actions">
+            <a class="ws-chip" href="{{ route('admin.login') }}">Admin</a>
+
             @if ($library->isNotEmpty())
                 <button type="button" class="ws-chip ws-chip--rail" data-rail-toggle aria-controls="ws-rail" aria-expanded="false">Library</button>
             @endif

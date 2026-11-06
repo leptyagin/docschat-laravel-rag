@@ -32,10 +32,14 @@
                 DocsChat
             </a>
 
-            <form method="post" action="{{ route('admin.logout') }}" class="lg:order-last lg:mt-auto">
-                @csrf
-                <button class="cursor-pointer rounded-lg text-sm font-medium text-haze transition-colors hover:text-mist">Log out</button>
-            </form>
+            <div class="flex items-center gap-4 lg:order-last lg:mt-auto lg:flex-col lg:items-start lg:gap-3">
+                <a href="{{ route('home') }}" class="rounded-lg text-sm font-medium text-haze transition-colors hover:text-mist">Landing page</a>
+
+                <form method="post" action="{{ route('admin.logout') }}">
+                    @csrf
+                    <button class="cursor-pointer rounded-lg text-sm font-medium text-haze transition-colors hover:text-mist">Log out</button>
+                </form>
+            </div>
 
             <nav aria-label="Admin" class="-mx-1 flex w-full gap-1 overflow-x-auto px-1 text-sm lg:flex-col lg:overflow-visible">
                 @foreach ($links as $label => [$route, $pattern, $icon])

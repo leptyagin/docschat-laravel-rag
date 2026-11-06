@@ -147,3 +147,10 @@ it('never shows questions of another bot', function (): void {
 
     get(route('admin.unanswered'))->assertOk()->assertDontSee('A foreign question');
 });
+
+it('links back to the landing page', function (): void {
+    actingAsAdmin();
+    managedBot();
+
+    get(route('admin.dashboard'))->assertSee('Landing page')->assertSee('href="'.route('home').'"', escape: false);
+});

@@ -51,6 +51,13 @@ it('shows a document with the assistant of its bot beside it', function (): void
         ->assertHeader('X-Frame-Options', 'DENY');
 });
 
+it('links to the admin panel from the header', function (): void {
+    $bot = Bot::factory()->create();
+
+    get(readerUrl($bot, documentWith($bot, [['A', 'Text.']])))
+        ->assertSee('<a class="ws-chip" href="'.route('admin.login').'">Admin</a>', escape: false);
+});
+
 it('rebuilds the headings of the document from the trails of its chunks', function (): void {
     $bot = Bot::factory()->create();
     $document = documentWith($bot, [

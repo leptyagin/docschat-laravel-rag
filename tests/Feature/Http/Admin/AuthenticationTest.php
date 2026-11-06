@@ -79,6 +79,10 @@ it('shows the demo credentials on the login page, and never the real ones', func
         ->assertDontSee('correct-horse');
 });
 
+it('links the login page back to the landing page', function (): void {
+    get(route('admin.login'))->assertSee('Back to the landing page')->assertSee('href="'.route('home').'"', escape: false);
+});
+
 it('logs out', function (): void {
     actingAs(new AdminUser(AdminRole::Admin, 'owner@example.com', 'x'));
 

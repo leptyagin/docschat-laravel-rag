@@ -37,6 +37,8 @@
                 Read-only demo: <strong>{{ $demoAccount['email'] }}</strong> / <strong>{{ $demoAccount['password'] }}</strong>
             </p>
         @endif
+
+        <a href="{{ route('home') }}" class="self-center rounded-lg text-sm font-medium text-haze transition-colors hover:text-mist">Back to the landing page</a>
     </main>
 </body>
 </html>
