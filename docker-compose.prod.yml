@@ -1,17 +1,31 @@
 # Production override:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-prod-environment: &prod-environment
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_KEY: ${APP_KEY:?APP_KEY must be set}
+  APP_URL: https://${DOMAIN:?DOMAIN must be set}
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: warning
+  SESSION_SECURE_COOKIE: "true"
+
 x-prod-app: &prod-app
+  <<: *logging
   image: docschat-app:prod
   build:
     context: .
     target: prod
   restart: unless-stopped
   env_file: .env
-  environment:
-    APP_ENV: production
-    APP_DEBUG: "false"
-    LOG_LEVEL: warning
+  environment: *prod-environment
   volumes: !override
     - app_storage:/app/storage/app
 
@@ -19,9 +33,7 @@ services:
   app:
     <<: *prod-app
     environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      LOG_LEVEL: warning
+      <<: *prod-environment
       SERVER_NAME: ${DOMAIN:?DOMAIN must be set}
       RUN_MIGRATIONS: "true"
     ports: !override
@@ -54,14 +66,20 @@ services:
           memory: 256M
 
   postgres:
+    <<: *logging
     restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     ports: !reset []
+    volumes: !override
+      - postgres_data:/var/lib/postgresql/data
     deploy:
       resources:
         limits:
           memory: 1G
 
   redis:
+    <<: *logging
     restart: unless-stopped
     ports: !reset []
     deploy:

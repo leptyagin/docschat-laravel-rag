@@ -89,7 +89,7 @@ COPY --chown=app:app --from=assets /app/public/widget.js ./public/widget.js
 
 RUN composer dump-autoload --classmap-authoritative --no-dev \
     && php artisan package:discover --ansi \
-    && mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
+    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
 
 ENTRYPOINT ["docker/entrypoint.sh"]
 CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile"]
