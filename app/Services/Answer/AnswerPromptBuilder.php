@@ -37,7 +37,6 @@ final readonly class AnswerPromptBuilder
         return new ChatRequest(
             systemPrompt: $this->prompts->render('answer', [
                 'bot_name' => $bot->name,
-                'fallback_contact' => $bot->fallback_contact,
                 'boundary' => $boundary,
             ]),
             prompt: $this->userPrompt($question, $searchQuery, $chunks, $boundary),

@@ -208,7 +208,6 @@ describe('answering', function (): void {
         $request = $chat->requests[0];
 
         expect($request->maxTokens)->toBe(123)
-            ->and($request->systemPrompt)->toContain('help@hotel.example')
             ->and($request->systemPrompt)->toContain('untrusted data')
             ->and($request->systemPrompt)->not->toContain('{{');
     });
