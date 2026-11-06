@@ -23,13 +23,14 @@
 		Strict-Transport-Security "max-age=31536000"
 	}
 
-	# The widget page sets its own frame policy, because any site may embed it.
-	@notWidget not path /widget/*
-	header @notWidget X-Frame-Options DENY
-
 	# A question is 500 characters at most, so the API never needs the upload limit.
 	request_body /api/* {
 		max_size 16KB
+	}
+
+	handle_errors 413 {
+		header Content-Type application/json
+		respond `{"message":"The request is too large."}` 413
 	}
 
 	@static path /build/* /favicon.ico /robots.txt
