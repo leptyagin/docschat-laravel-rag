@@ -13,10 +13,9 @@ The demo runs on Seabreeze Hotels, a fictional company.
 
 ## What it does
 
-- Answers from your PDFs, Markdown files and web pages, and never from the model's general knowledge
+- Answers from your PDFs, Markdown files and web pages. The model is instructed to use nothing else, and an answer without a valid citation is flagged
 - Cites every answer inline, with clickable sources that show the document and page
-- Refuses when nothing relevant is found, without paying for a model call
-- Flags an answer that came back without a valid citation as unanswered
+- Refuses when nothing relevant is found, without calling the chat model
 - Understands follow-up questions and replies in the language of the question
 - Joins any website with one `<script>` tag, isolated from the site's styles
 - Streams answers as they are written
@@ -138,9 +137,9 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 | API request body | 16 KB, enforced by the web server |
 | Admin panel | the demo account can read everything and change nothing |
 
-Limits count per IPv4 address or per IPv6 /64 network, because one IPv6 customer usually holds a whole /64. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit. Only do that when the origin cannot be reached directly, because a trusted proxy header can otherwise be forged.
+Limits count per IPv4 address or per IPv6 /48 network, because one IPv6 customer can hold thousands of addresses. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit. Only do that when the origin cannot be reached directly, because a trusted proxy header can otherwise be forged.
 
-A model that is missing from the price table is charged at a deliberately high price and logged, so a mistyped model name trips the daily cap early instead of spending without limit.
+The application refuses to start if a configured model is missing from the price table, because the daily cap could not count its cost.
 
 ### Embedding the widget
 
@@ -152,7 +151,13 @@ Optional attributes are `data-color` (a hex color), `data-position` (`left` or `
 
 ### Production
 
-Set `DOMAIN`, `APP_KEY`, a strong `DB_PASSWORD`, `ADMIN_PASSWORD` and the provider keys in `.env`. Compose stops with an error if `DOMAIN`, `APP_KEY` or `DB_PASSWORD` is empty. Then:
+Set `DOMAIN`, a strong `DB_PASSWORD`, `ADMIN_PASSWORD` and the provider keys in `.env`, and generate the application key:
+
+```bash
+sed -i "s|^APP_KEY=.*|APP_KEY=base64:$(openssl rand -base64 32)|" .env
+```
+
+Compose stops with an error if `DOMAIN`, `APP_KEY` or `DB_PASSWORD` is empty, and the containers refuse to start with the example `DB_PASSWORD`. Postgres reads the password only when its volume is first created, so to change it later use `ALTER USER` as well as `.env`.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -191,6 +196,6 @@ tests/              Pest tests and the eval questions
 - **The similarity threshold needs tuning.** The default suits short policy documents like the demo's. Check it with the evals on any new document set.
 - **Token counts for chunking are estimates.** Costs use the provider's reported usage when it is available, and an estimate otherwise.
 - **The daily cap can overshoot slightly.** The spend total is cached for 30 seconds, and answers in flight are not counted yet. It also covers answers only, not the embedding of new documents.
-- **Rate limits follow the network.** Visitors behind one shared address share a limit, and someone with many addresses can still get around it. There is no CAPTCHA.
-- **Conversations on the public demo are visible** in the read-only admin panel, and the demo page says so.
+- **Rate limits follow the network.** Visitors behind one shared address or IPv6 /48 share a limit, and someone with many networks can still get around it. There is no CAPTCHA.
+- **Conversations on the public demo are visible** in the read-only admin panel, and the demo page and chat both say so.
 - **The interface is in English,** though answers follow the language of the question.
