@@ -160,7 +160,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | US dollars per one million tokens, as strings to stay exact. A model that
-    | is missing here is logged and counted as free, so keep this list current.
+    | is missing here is logged and charged at the deliberately high unlisted
+    | price, so that a mistyped model name trips the daily budget early instead
+    | of spending without limit.
     |
     */
 
@@ -171,5 +173,7 @@ return [
         'fake-chat' => ['input' => '0', 'output' => '0'],
         'fake-embedding' => ['input' => '0', 'output' => '0'],
     ],
+
+    'unlisted_model_price' => ['input' => '5.00', 'output' => '25.00'],
 
 ];

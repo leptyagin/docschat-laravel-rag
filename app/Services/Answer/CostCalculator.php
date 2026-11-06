@@ -21,9 +21,11 @@ final readonly class CostCalculator
 
     /**
      * @param  array<string, array{input: string, output: string}>  $prices
+     * @param  array{input: string, output: string}  $unlistedModelPrice
      */
     public function __construct(
         #[Config('docschat.prices')] private array $prices,
+        #[Config('docschat.unlisted_model_price')] private array $unlistedModelPrice,
     ) {}
 
     /**
@@ -46,9 +48,9 @@ final readonly class CostCalculator
         $price = $this->prices[$usage->model] ?? null;
 
         if ($price === null) {
-            Log::warning('No price is configured for a model, so its usage counts as free.', ['model' => $usage->model]);
+            Log::warning('No price is configured for a model, so it is charged at the unlisted model price.', ['model' => $usage->model]);
 
-            return new Number('0');
+            $price = $this->unlistedModelPrice;
         }
 
         $tokenCost = new Number($price['input']) * $usage->promptTokens
