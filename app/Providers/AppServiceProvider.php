@@ -63,6 +63,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureTrustedProxies();
         $this->configureRateLimiting();
         $this->configureAuthentication();
+        $this->configureRouteParameters();
         $this->configureRouteBindings();
     }
 
@@ -187,6 +188,16 @@ class AppServiceProvider extends ServiceProvider
             $app->make('config')->get('docschat.admin.accounts'),
             $app->make(Hasher::class),
         ));
+    }
+
+    /**
+     * Ids are bigints, so anything else must end as a 404 and not as a database error.
+     */
+    private function configureRouteParameters(): void
+    {
+        foreach (['document', 'message', 'managedDocument', 'managedConversation'] as $parameter) {
+            Route::pattern($parameter, '[0-9]{1,18}');
+        }
     }
 
     /**

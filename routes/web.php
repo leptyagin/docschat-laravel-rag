@@ -43,7 +43,6 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
 
     Route::get('read/{bot:public_key}/{document}', [WorkspaceDocumentController::class, 'show'])
         ->middleware(['throttle:documents', ContentSecurityPolicy::class])
-        ->where('document', '[0-9]{1,18}')
         ->scopeBindings()
         ->name('reader.show');
 });

@@ -16,6 +16,7 @@ use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 use function Pest\Laravel\freezeTime;
+use function Pest\Laravel\post;
 use function Pest\Laravel\postJson;
 use function Pest\Laravel\withHeader;
 use function Pest\Laravel\withServerVariables;
@@ -275,3 +276,13 @@ it('gives the slot back after every kind of response', function (array $payload)
     'an answer' => [['question' => 'Are dogs allowed?']],
     'a failed validation' => [['question' => '']],
 ]);
+
+it('rejects a question that is not valid UTF-8 and leaves nothing behind', function (): void {
+    $bot = chattingBot();
+
+    post(route('api.v1.messages.store', $bot->public_key), ['question' => "abc\xFF\xFE"], ['Accept' => 'application/json'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('question');
+
+    expect(Conversation::query()->count())->toBe(0);
+});

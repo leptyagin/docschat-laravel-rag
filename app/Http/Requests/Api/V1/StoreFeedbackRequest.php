@@ -21,9 +21,11 @@ final class StoreFeedbackRequest extends FormRequest
     {
         /** @var Message $message */
         $message = $this->route('message');
+        $token = $this->input('conversation_token');
 
         return $message->role === MessageRole::Assistant
-            && $tokens->conversationId($this->string('conversation_token')->toString()) === $message->conversation_id;
+            && is_string($token)
+            && $tokens->conversationId($token) === $message->conversation_id;
     }
 
     /**

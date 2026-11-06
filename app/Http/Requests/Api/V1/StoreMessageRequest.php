@@ -29,7 +29,7 @@ final class StoreMessageRequest extends FormRequest
         $bot = $this->route('bot');
 
         return [
-            'question' => ['required', 'string', "max:{$maxQuestionLength}", 'not_regex:/\x00/'],
+            'question' => ['required', 'string', 'encoding:UTF-8', "max:{$maxQuestionLength}", 'not_regex:/\x00/'],
             'conversation_token' => ['nullable', 'string', new ConversationTokenOfBot($bot, $tokens)],
         ];
     }

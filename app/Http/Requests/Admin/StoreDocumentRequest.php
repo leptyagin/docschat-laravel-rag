@@ -22,7 +22,7 @@ final class StoreDocumentRequest extends FormRequest
     {
         return [
             'file' => ['required', 'file', 'extensions:pdf,md,txt', 'max:'.intdiv($maxFileBytes, 1024)],
-            'title' => ['nullable', 'string', 'max:255'],
+            'title' => ['nullable', 'string', 'encoding:UTF-8', 'max:255'],
         ];
     }
 

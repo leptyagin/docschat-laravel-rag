@@ -79,3 +79,10 @@ it('rejects an unknown rating with 422', function (): void {
         ->assertUnprocessable()
         ->assertJsonValidationErrors('feedback');
 });
+
+it('refuses a token that is not a string', function (): void {
+    $message = Message::factory()->create(['role' => MessageRole::Assistant]);
+    $bot = $message->conversation->bot;
+
+    postJson(route('api.v1.feedback.store', [$bot->public_key, $message->id]), ['feedback' => 'up', 'conversation_token' => ['x']])->assertForbidden();
+});
