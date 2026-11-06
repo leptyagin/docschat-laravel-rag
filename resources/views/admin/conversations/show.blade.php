@@ -1,3 +1,5 @@
+@inject('visitorText', 'App\Services\Admin\VisitorText')
+
 <x-admin.layout title="Conversation">
     <a href="{{ route('admin.conversations.index') }}" class="text-sm text-brand-light hover:underline">← All conversations</a>
 
@@ -7,15 +9,15 @@
         @foreach ($messages as $message)
             @if ($message->role === \App\Enums\MessageRole::User)
                 <li class="max-w-2xl self-end rounded-2xl rounded-br-md bg-brand/20 p-3.5">
-                    <p class="break-words whitespace-pre-line">{{ $message->content }}</p>
+                    <p class="break-words whitespace-pre-line">{{ $visitorText->forViewer($message->content) }}</p>
                     @if ($message->rewritten_query && $message->rewritten_query !== $message->content)
-                        <p class="mt-1 text-xs text-haze">Searched for: {{ $message->rewritten_query }}</p>
+                        <p class="mt-1 text-xs text-haze">Searched for: {{ $visitorText->forViewer($message->rewritten_query) }}</p>
                     @endif
                 </li>
             @else
                 <li class="w-full max-w-2xl">
                     <x-admin.card>
-                        <p class="break-words whitespace-pre-line">{{ $message->content }}</p>
+                        <p class="break-words whitespace-pre-line">{{ $visitorText->forViewer($message->content) }}</p>
 
                         @if ($message->sources)
                             <h2 class="mt-3 text-xs font-semibold tracking-wide text-haze uppercase">Sources</h2>

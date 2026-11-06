@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\BlockReadOnlyUsers;
+use App\Models\Conversation;
 use App\Models\Document;
+use App\Models\Message;
 use Illuminate\Http\UploadedFile;
 
 use function Pest\Laravel\from;
@@ -64,4 +66,39 @@ it('disables the buttons for the demo account only', function (): void {
 
     actingAsAdmin();
     get(route('admin.settings.edit'))->assertDontSee('Switched off in the read-only demo');
+});
+
+describe('text typed by visitors', function (): void {
+    function conversationWithPersonalData(): Conversation
+    {
+        $conversation = Conversation::factory()->for(managedBot())->create();
+
+        Message::factory()->for($conversation)->create([
+            'content' => 'Mail me at jane.doe@mail.example or call +1 (555) 010-9999, see https://spam.example/buy',
+            'rewritten_query' => 'jane.doe@mail.example',
+        ]);
+
+        return $conversation;
+    }
+
+    it('hides contact details and links from the demo account', function (string $route): void {
+        actingAsDemo();
+        $conversation = conversationWithPersonalData();
+
+        get(route($route, $route === 'admin.conversations.show' ? $conversation : []))
+            ->assertOk()
+            ->assertSee('[hidden]')
+            ->assertDontSee('jane.doe')
+            ->assertDontSee('010-9999')
+            ->assertDontSee('spam.example');
+    })->with(['admin.conversations.index', 'admin.conversations.show']);
+
+    it('shows the owner the text as it was written', function (): void {
+        actingAsAdmin();
+
+        get(route('admin.conversations.show', conversationWithPersonalData()))
+            ->assertOk()
+            ->assertSee('jane.doe@mail.example')
+            ->assertSee('https://spam.example/buy');
+    });
 });
