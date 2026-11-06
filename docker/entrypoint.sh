@@ -6,6 +6,11 @@ if [ "${1:-}" = "frankenphp" ] && [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
 fi
 
 if [ "${APP_ENV:-production}" = "production" ]; then
+    if [ "${DB_PASSWORD:-}" = "secret" ]; then
+        echo "Refusing to start: DB_PASSWORD still has the example value." >&2
+        exit 1
+    fi
+
     php artisan optimize --no-interaction
 fi
 
