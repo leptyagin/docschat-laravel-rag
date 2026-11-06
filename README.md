@@ -13,14 +13,14 @@ The demo runs on Seabreeze Hotels, a fictional company.
 
 ## What it does
 
-- Answers from your PDFs, Markdown files and web pages. The model is instructed to use nothing else, and an answer without a valid citation is flagged
+- Answers from your PDFs, Markdown files and web pages. The model is instructed to use nothing else, and text without a valid citation never reaches the visitor
 - Cites every answer inline, with clickable sources that show the document and page
 - Refuses when nothing relevant is found, without calling the chat model
 - Understands follow-up questions and replies in the language of the question
 - Joins any website with one `<script>` tag, isolated from the site's styles
 - Streams answers as they are written
 - Gives the owner an admin panel with documents, conversations and their sources, grouped unanswered questions, and the cost and latency of each answer
-- Protects the public demo with rate limits, a daily spending cap, and input and output limits
+- Protects the public demo with rate limits, a paced daily spending cap, moderation, and input and output limits
 
 ## How it works
 
@@ -28,11 +28,11 @@ The demo runs on Seabreeze Hotels, a fictional company.
 
 **Each question** goes through these steps:
 
-1. A follow-up is rewritten into a standalone search query, using the last 6 messages.
+1. The question goes through the provider's moderation check, and a follow-up is rewritten into a standalone search query, using the last 6 messages.
 2. Chunks are ranked by cosine similarity (pgvector, HNSW) and by full-text search, and the two rankings are merged with Reciprocal Rank Fusion. The top 6 are kept.
 3. If the best similarity is below the threshold, the bot refuses without calling the chat model.
-4. The model answers from those chunks only, with inline citations, streamed over server-sent events. Retrieved text is treated as untrusted data.
-5. Citations are checked against the chunks that were actually retrieved.
+4. The model answers from those chunks only, with inline citations. Retrieved text and the question travel in blocks closed by a random tag made for that request, so neither can pose as part of the prompt.
+5. Nothing is shown until the text cites a chunk that was actually retrieved. From there the answer streams over server-sent events, and an answer that never cites one is replaced by a refusal.
 6. The message is stored with its tokens, cost and latency.
 
 The system prompts are in [`resources/prompts`](resources/prompts).
@@ -117,9 +117,11 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 | `DOCSCHAT_EMBEDDING_MODEL` | `text-embedding-3-small` | Changing it re-embeds on the next seed |
 | `DOCSCHAT_RETRIEVAL_MIN_SIMILARITY` | `0.3` | Below this the bot refuses |
 | `DOCSCHAT_MAX_ANSWER_TOKENS` | `400` | Output limit per answer |
+| `DOCSCHAT_MODERATION_ENABLED` | `true` | Checks questions against the provider's free moderation endpoint |
+| `DOCSCHAT_CONVERSATION_RETENTION_DAYS` | `30` | Conversations are deleted this long after their last message |
 | `DAILY_BUDGET_USD` | `2` | Above this the bot stops calling models for the day |
 | `TRUSTED_PROXIES` | | Comma-separated addresses, or `*`, when behind a proxy |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | | Owner login. Without a password it cannot log in. |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | | Owner login. Without a password it cannot log in. In production, use a hash from `php artisan docschat:hash-password` |
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | `demo@example.com`, `demo` | Read-only login, shown on the login page |
 | `DEMO_BOT_KEY` | `pk_seabreeze_demo` | The bot shown on the demo page |
 | `DEMO_REPOSITORY_URL`, `DEMO_AUTHOR_URL`, `DEMO_AUTHOR_LABEL` | | Links on the demo page. Empty links are hidden. |
@@ -132,14 +134,18 @@ Secrets and deployment settings live in `.env`. The rest is in [`config/docschat
 | Protection | Limit |
 | --- | --- |
 | Messages per visitor | 20 per hour and 60 per day, with a friendly 429 and `Retry-After` |
-| Daily spend | `DAILY_BUDGET_USD` across all bots |
+| Messages per IPv4 /24 | 60 per hour and 200 per day |
+| Answers at once | 6 overall and 2 per visitor, so streams cannot take every web server thread |
+| Other sites | The API refuses requests with a foreign `Origin`, and CORS is off |
+| Daily spend | `DAILY_BUDGET_USD` across all bots, opening up through the day, so a burst pauses the bot for a while rather than until midnight |
+| Pages | 120 per minute per visitor, and public pages start no session |
 | Question length | 500 characters |
 | Answer length | 400 tokens |
 | Conversation history | the last 6 messages |
 | API request body | 16 KB, enforced by the web server |
-| Admin panel | the demo account can read everything and change nothing |
+| Admin panel | the demo account can read everything and change nothing, and contact details and links typed by visitors are hidden from it |
 
-Limits count per IPv4 address or per IPv6 /48 network, because one IPv6 customer can hold thousands of addresses. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit. Only do that when the origin cannot be reached directly, because a trusted proxy header can otherwise be forged. Prefer addresses to `*`: with `*` Laravel trusts every hop and takes the leftmost address, which the visitor controls unless the proxy overwrites the header.
+Limits count per IPv4 address or per IPv6 /48 network, because one IPv6 customer can hold thousands of addresses. Behind a proxy such as Cloudflare, set `TRUSTED_PROXIES`, or all visitors will share one limit and the API will refuse the chat itself, because its HTTPS origin will not match what the application sees. Only do that when the origin cannot be reached directly, because a trusted proxy header can otherwise be forged. Prefer addresses to `*`: with `*` Laravel trusts every hop and takes the leftmost address, which the visitor controls unless the proxy overwrites the header.
 
 The application refuses to start if a configured model is missing from the price table, because the daily cap could not count its cost.
 
@@ -153,13 +159,13 @@ Optional attributes are `data-color` (a hex color), `data-position` (`left` or `
 
 ### Production
 
-Set `DOMAIN`, a strong `DB_PASSWORD`, `ADMIN_PASSWORD` and the provider keys in `.env`, and generate the application key:
+Set `DOMAIN`, a strong `DB_PASSWORD` and `REDIS_PASSWORD`, `ADMIN_PASSWORD` and the provider keys in `.env`, and generate the application key. Use `php artisan docschat:hash-password` for `ADMIN_PASSWORD` and put the hash in single quotes. Set a monthly limit for the API key in the provider's dashboard as well: the daily budget counts what the application knows about, and only the provider can enforce a hard stop.
 
 ```bash
 sed -i "s|^APP_KEY=.*|APP_KEY=base64:$(openssl rand -base64 32)|" .env
 ```
 
-Compose stops with an error if `DOMAIN`, `APP_KEY` or `DB_PASSWORD` is empty, and the containers refuse to start with the example `DB_PASSWORD`. Postgres reads the password only when its volume is first created, so to change it later use `ALTER USER` as well as `.env`.
+Compose stops with an error if `DOMAIN`, `APP_KEY`, `DB_PASSWORD` or `REDIS_PASSWORD` is empty, and the containers refuse to start with an example password or an `ADMIN_PASSWORD` under 16 characters. Postgres reads the password only when its volume is first created, so to change it later use `ALTER USER` as well as `.env`.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -210,7 +216,9 @@ tests/              Pest tests and the eval questions
 - **The admin panel manages one bot.** The data model supports many, but there is no bot switcher, user management or billing.
 - **The similarity threshold needs tuning.** The default suits short policy documents like the demo's. Check it with the evals on any new document set.
 - **Token counts for chunking are estimates.** Costs use the provider's reported usage when it is available, and an estimate otherwise.
-- **The daily cap can overshoot slightly.** The spend total is cached for 30 seconds, and answers in flight are not counted yet. It also covers answers only, not the embedding of new documents.
+- **The daily cap covers answers only,** not the embedding of new documents, and it trusts the price table in the configuration.
 - **Rate limits follow the network.** Visitors behind one shared address or IPv6 /48 share a limit, and someone with many networks can still get around it. There is no CAPTCHA.
+- **The grounding check is not proof.** It stops text with no citation, but a model talked into adding a valid citation gets through, and an uncited refusal in the visitor's language becomes the English one.
+- **The admin login has no second factor.** The panel is meant to sit behind a strong password and the login limits.
 - **Conversations on the public demo are visible** in the read-only admin panel, and the demo page and chat both say so.
 - **The interface is in English,** though answers follow the language of the question.
