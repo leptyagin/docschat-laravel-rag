@@ -18,7 +18,10 @@ Route::get('/', LandingController::class)->name('home');
 
 Route::prefix('widget/{bot:public_key}')->name('widget.')->group(function (): void {
     Route::get('/', [WidgetController::class, 'show'])->name('show');
-    Route::get('documents/{document}', [WidgetDocumentController::class, 'show'])->scopeBindings()->name('documents.show');
+    Route::get('documents/{document}', [WidgetDocumentController::class, 'show'])
+        ->middleware('throttle:documents')
+        ->scopeBindings()
+        ->name('documents.show');
 });
 
 Route::prefix('admin')->name('admin.')->group(function (): void {

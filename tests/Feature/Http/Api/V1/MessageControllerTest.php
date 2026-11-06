@@ -156,6 +156,17 @@ it('limits a visitor to the configured messages per hour with a friendly 429', f
     expect(Conversation::query()->count())->toBe(2);
 });
 
+it('tells a limited client when to come back', function (): void {
+    config()->set('docschat.rate_limits.per_hour', 1);
+    $bot = chattingBot();
+
+    postMessage($bot, ['question' => 'One'])->assertOk()->streamedContent();
+
+    postMessage($bot, ['question' => 'Two'])
+        ->assertTooManyRequests()
+        ->assertHeader('Retry-After', 3600);
+});
+
 it('counts the limit per IP address, not per user agent', function (): void {
     config()->set('docschat.rate_limits.per_hour', 1);
     $bot = chattingBot();
@@ -165,6 +176,28 @@ it('counts the limit per IP address, not per user agent', function (): void {
     withHeader('User-Agent', 'Another browser');
 
     postMessage($bot, ['question' => 'Two'])->assertTooManyRequests();
+});
+
+it('counts one limit for a whole IPv6 network', function (): void {
+    config()->set('docschat.rate_limits.per_hour', 1);
+    $bot = chattingBot();
+
+    withServerVariables(['REMOTE_ADDR' => '2001:db8:1:2::1']);
+    postMessage($bot, ['question' => 'One'])->assertOk()->streamedContent();
+
+    withServerVariables(['REMOTE_ADDR' => '2001:db8:1:2::2']);
+    postMessage($bot, ['question' => 'Two'])->assertTooManyRequests();
+});
+
+it('does not let one visitor use up the limit of another', function (): void {
+    config()->set('docschat.rate_limits.per_hour', 1);
+    $bot = chattingBot();
+
+    withServerVariables(['REMOTE_ADDR' => '203.0.113.1']);
+    postMessage($bot, ['question' => 'One'])->assertOk()->streamedContent();
+
+    withServerVariables(['REMOTE_ADDR' => '203.0.113.2']);
+    postMessage($bot, ['question' => 'Two'])->assertOk()->streamedContent();
 });
 
 it('limits a visitor per day as well', function (): void {

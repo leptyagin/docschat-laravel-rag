@@ -14,6 +14,7 @@ use App\Auth\ConfiguredUserProvider;
 use App\Models\Conversation;
 use App\Models\Document;
 use App\Services\Admin\ManagedBot;
+use App\Services\Answer\VisitorNetwork;
 use App\Services\Ingestion\Web\DnsHostResolver;
 use App\Services\Ingestion\Web\HostResolver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -85,16 +86,18 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Limits are per IP address rather than per visitor hash, because a client
-     * can change its user agent freely but not its address.
+     * Limits follow the network of the visitor rather than the visitor hash,
+     * because a client can change its user agent freely but not its network.
      */
     private function configureRateLimiting(): void
     {
         RateLimiter::for('chat', function (Request $request): array {
-            $key = hash('sha256', (string) $request->ip());
-            $tooManyRequests = fn (): JsonResponse => new JsonResponse([
+            $key = $this->networkKey($request);
+
+            /** @param array<string, int|string> $headers */
+            $tooManyRequests = fn (Request $request, array $headers): JsonResponse => new JsonResponse([
                 'message' => "You've reached the message limit for this demo. Please come back a little later.",
-            ], 429);
+            ], 429, $headers);
 
             return [
                 Limit::perHour(config()->integer('docschat.rate_limits.per_hour'))->by("hour:{$key}")->response($tooManyRequests),
@@ -102,8 +105,17 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
-        RateLimiter::for('feedback', fn (Request $request): Limit => Limit::perMinute(30)->by((string) $request->ip()));
-        RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)->by((string) $request->ip()));
+        RateLimiter::for('feedback', fn (Request $request): Limit => Limit::perMinute(30)->by($this->networkKey($request)));
+        RateLimiter::for('documents', fn (Request $request): Limit => Limit::perMinute(60)->by($this->networkKey($request)));
+        RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)->by($this->networkKey($request)));
+    }
+
+    /**
+     * Hashed so that no address of a visitor ends up in the cache.
+     */
+    private function networkKey(Request $request): string
+    {
+        return hash('sha256', $this->app->make(VisitorNetwork::class)->of((string) $request->ip()));
     }
 
     private function configureAuthentication(): void

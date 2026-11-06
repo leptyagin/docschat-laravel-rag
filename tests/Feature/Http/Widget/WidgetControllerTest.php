@@ -82,6 +82,19 @@ describe('source files', function (): void {
         expect($response->headers->get('Content-Type'))->toStartWith('text/plain');
     });
 
+    it('limits how fast one visitor can pull files with 429', function (): void {
+        Storage::fake('local');
+        Storage::disk('local')->put('documents/guide.md', 'Text');
+        $bot = Bot::factory()->create();
+        $url = route('widget.documents.show', [$bot->public_key, Document::factory()->for($bot)->create(['file_path' => 'documents/guide.md'])]);
+
+        for ($request = 1; $request <= 60; $request++) {
+            get($url)->assertOk();
+        }
+
+        get($url)->assertTooManyRequests();
+    });
+
     it('returns 404 for a document of another bot', function (): void {
         Storage::fake('local');
         $document = Document::factory()->create();
