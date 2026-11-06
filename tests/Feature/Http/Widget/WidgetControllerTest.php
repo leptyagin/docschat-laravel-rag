@@ -56,7 +56,7 @@ it('cannot be broken out of through the greeting', function (): void {
 
 it('rejects a color that is not a color', function (): void {
     get(route('widget.show', [Bot::factory()->create()->public_key, 'color' => 'red;background:url(x)']))
-        ->assertSessionHasErrors('color');
+        ->assertUnprocessable();
 });
 
 it('returns 404 for an unknown bot', function (): void {

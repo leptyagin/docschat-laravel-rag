@@ -22,7 +22,7 @@
     @unless ($isIndexable)
         <meta name="robots" content="noindex">
     @endunless
-    <script>document.documentElement.classList.add('js')</script>
+    <script nonce="{{ Vite::cspNonce() }}">document.documentElement.classList.add('js')</script>
     @vite(['resources/css/workspace.css', 'resources/workspace/main.js'])
 </head>
 <body class="ws" data-view="document" data-assistant="{{ $chat ? 'open' : 'none' }}">

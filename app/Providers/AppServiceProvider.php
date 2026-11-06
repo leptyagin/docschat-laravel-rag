@@ -150,6 +150,8 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('feedback', fn (Request $request): Limit => $this->perMinuteLimit('feedback', $request));
         RateLimiter::for('documents', fn (Request $request): Limit => $this->perMinuteLimit('documents', $request));
+        RateLimiter::for('pages', fn (Request $request): Limit => $this->perMinuteLimit('pages', $request));
+
         RateLimiter::for('login', fn (Request $request): Limit => $this->perMinuteLimit('login', $request));
     }
 
