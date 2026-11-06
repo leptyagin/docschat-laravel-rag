@@ -8,7 +8,9 @@
     @vite('resources/css/app.css')
 </head>
 <body class="bg-white text-slate-900 antialiased">
-    <p class="bg-slate-900 px-4 py-2 text-center text-sm text-white">Demo project. Seabreeze Hotels is a fictional company.</p>
+    <p class="bg-slate-900 px-4 py-2 text-center text-sm text-white">
+        Demo project. Seabreeze Hotels is a fictional company. Questions asked here appear in the public read-only admin panel, so please don’t share personal details.
+    </p>
 
     <main class="mx-auto flex max-w-3xl flex-col gap-14 px-4 py-12 lg:mr-[28rem] lg:ml-auto xl:mr-[32rem]">
         <section class="flex flex-col gap-4">

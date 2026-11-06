@@ -16,6 +16,10 @@ it('presents the demo with the widget open and the example questions', function 
         ->assertSee('data-open="true"', escape: false);
 });
 
+it('warns visitors that their questions are visible in the public admin panel', function (): void {
+    get(route('home'))->assertSee('appear in the public read-only admin panel');
+});
+
 it('shows only the links that are configured', function (): void {
     managedBot();
     config()->set('docschat.demo.links', ['repository_url' => 'https://git.example/repo', 'author_url' => null, 'author_label' => 'Hire me']);
